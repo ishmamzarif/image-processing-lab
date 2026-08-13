@@ -1,1 +1,8 @@
 .venv/
+test/
+samples/
+.claude/
+.impeccable/
+plan.md
+plan.pdf
+src/__pycache__

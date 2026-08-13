@@ -1,11 +1,57 @@
 <!DOCTYPE html>
-    <head>
-        <title>lab</title>
-    </head>
-    <body>
-        hello, {{ name }}
+<html>
 
-    </br>
-        {{ str }}
-    </body>
+<head>
+    <title>Image Processing Lab</title>
+</head>
+
+<body>
+    <center>
+    <h1>Image Processing Laboratory</h1>
+     
+    <form action="/blur" method="POST" enctype="multipart/form-data">
+        <p>
+            <label>Image: <input type="file" name="image" accept="image/*" required></label>
+        </p>
+        <p>
+            <label>Kernel size:
+                <select name="ksize">
+                    <option value="3">3 x 3</option>
+                    <option value="5" selected>5 x 5</option>
+                    <option value="9">9 x 9</option>
+                </select>
+            </label>
+        </p>
+        <p>
+            <button type="submit">Apply Blur</button>
+        </p>
+    </form>
+
+    {% if error %}
+    <p><b>Error:</b> {{ error }}</p>
+    {% endif %}
+
+    {% if blurred %}
+    <hr>
+
+    <p>
+        {{ ksize }} x {{ ksize }} box filter on a {{ size }} image, computed in {{ elapsed }} seconds.
+    </p>
+
+    <table>
+        <tr>
+            <th>Original</th>
+            <th>Blurred</th>
+        </tr>
+        <tr>
+            <td><img src="{{ original }}"></td>
+            <td><img src="{{ blurred }}"></td>
+        </tr>
+    </table>
+    {% endif %}
+     
+     
+    </center>
+</body>
+
 </html>
