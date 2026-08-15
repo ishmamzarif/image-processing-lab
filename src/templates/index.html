@@ -27,6 +27,33 @@
         </p>
     </form>
 
+    <form action="/sharpen" method="POST" enctype="multipart/form-data">
+        <p>
+            <label>Image: <input type="file" name="image" accept="image/*" required></label>
+        </p>
+        <p>
+            <label>Cutoff radius:
+                <select name="cutoff">
+                    <option value="5">5</option>
+                    <option value="15" selected>15</option>
+                    <option value="30">30</option>
+                </select>
+            </label>
+        </p>
+        <p>
+            <label>Amount:
+                <select name="amount">
+                    <option value="0.5">0.5</option>
+                    <option value="1.0" selected>1.0</option>
+                    <option value="2.0">2.0</option>
+                </select>
+            </label>
+        </p>
+        <p>
+            <button type="submit">Apply Sharpen</button>
+        </p>
+    </form>
+
     {% if error %}
     <p><b>Error:</b> {{ error }}</p>
     {% endif %}
@@ -46,6 +73,25 @@
         <tr>
             <td><img src="{{ original }}"></td>
             <td><img src="{{ blurred }}"></td>
+        </tr>
+    </table>
+    {% endif %}
+
+    {% if sharpened %}
+    <hr>
+
+    <p>
+        High-pass sharpening (cutoff {{ cutoff }}, amount {{ amount }}) on a {{ size }} image, computed in {{ elapsed }} seconds.
+    </p>
+
+    <table>
+        <tr>
+            <th>Original</th>
+            <th>Sharpened</th>
+        </tr>
+        <tr>
+            <td><img src="{{ original }}"></td>
+            <td><img src="{{ sharpened }}"></td>
         </tr>
     </table>
     {% endif %}
