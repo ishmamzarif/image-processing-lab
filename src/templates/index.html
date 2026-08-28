@@ -54,6 +54,24 @@
         </p>
     </form>
 
+    <form action="/edges" method="POST" enctype="multipart/form-data">
+        <p>
+            <label>Image: <input type="file" name="image" accept="image/*" required></label>
+        </p>
+        <p>
+            <label>Cutoff radius:
+                <select name="cutoff">
+                    <option value="5">5</option>
+                    <option value="15" selected>15</option>
+                    <option value="30">30</option>
+                </select>
+            </label>
+        </p>
+        <p>
+            <button type="submit">Detect Edges</button>
+        </p>
+    </form>
+
     {% if error %}
     <p><b>Error:</b> {{ error }}</p>
     {% endif %}
@@ -92,6 +110,25 @@
         <tr>
             <td><img src="{{ original }}"></td>
             <td><img src="{{ sharpened }}"></td>
+        </tr>
+    </table>
+    {% endif %}
+
+    {% if edges %}
+    <hr>
+
+    <p>
+        CFT edge detection (cutoff {{ edge_cutoff }}) on a {{ size }} image, computed in {{ elapsed }} seconds.
+    </p>
+
+    <table>
+        <tr>
+            <th>Original</th>
+            <th>Edges</th>
+        </tr>
+        <tr>
+            <td><img src="{{ original }}"></td>
+            <td><img src="{{ edges }}"></td>
         </tr>
     </table>
     {% endif %}

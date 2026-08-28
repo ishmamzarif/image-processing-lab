@@ -119,6 +119,22 @@ def high_pass_detail(channel, cutoff):
     return reconstruct(real, imag, u, v, x, y)
 
 
+def to_grayscale(rgb):
+    gray = np.asarray(Image.fromarray(rgb).convert("L"), dtype=np.float64)
+    peak = gray.max()
+    if peak > 0:
+        gray = gray / peak
+    return gray
+
+
+def edge_map(channel, cutoff):
+    edges = np.abs(high_pass_detail(channel, cutoff))
+    peak = edges.max()
+    if peak > 0:
+        edges = edges / peak
+    return 1 - edges
+
+
 def to_data_uri(arr):
     """Encode a uint8 image array as a base64 PNG so it can go straight into <img>."""
     buf = io.BytesIO()
@@ -202,6 +218,38 @@ def sharpen():
         sharpened=to_data_uri(sharpened),
         cutoff="{:g}".format(cutoff),
         amount="{:g}".format(amount),
+        size="{} x {}".format(original.shape[1], original.shape[0]),
+        elapsed="{:.2f}".format(elapsed),
+    )
+
+
+@app.route("/edges", methods=["POST"])
+def edges():
+    file = request.files.get("image")
+    if file is None or file.filename == "":
+        return render_template("index.html", error="Please choose an image file.")
+
+    cutoff = float(request.form.get("cutoff", 15))
+
+    try:
+        img = Image.open(file.stream).convert("RGB")
+    except Exception:
+        return render_template("index.html", error="That file could not be read as an image.")
+
+    img.thumbnail((MAX_DIM, MAX_DIM))
+    original = np.asarray(img, dtype=np.uint8)
+
+    start = time.time()
+    detected = edge_map(to_grayscale(original), cutoff)
+    elapsed = time.time() - start
+
+    detected = np.clip(detected * 255.0, 0, 255).astype(np.uint8)
+
+    return render_template(
+        "index.html",
+        original=to_data_uri(original),
+        edges=to_data_uri(detected),
+        edge_cutoff="{:g}".format(cutoff),
         size="{} x {}".format(original.shape[1], original.shape[0]),
         elapsed="{:.2f}".format(elapsed),
     )
