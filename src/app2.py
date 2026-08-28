@@ -9,8 +9,14 @@ from PIL import Image
 app = Flask(__name__)
 
 # Images are capped to this size because the convolution below is a literal
-# per-pixel Python loop. 200px keeps a blur under a couple of seconds.
-MAX_DIM = 200
+# per-pixel Python loop, so cost grows with the pixel count times the kernel
+# area. At 500px a 3x3 blur takes ~0.9s and an 11x11 blur takes ~10s, which is
+# why the kernel slider in the template stops at 11.
+MAX_DIM = 500
+
+# The template sizes the pre-run preview to match what the processed image will
+# be, so it needs the same number. Exposing it here keeps the two in step.
+app.jinja_env.globals["MAX_DIM"] = MAX_DIM
 
 
 def box_kernel(size):
