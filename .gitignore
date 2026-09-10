@@ -5,4 +5,4 @@ samples/
 .impeccable/
 plan.md
 plan.pdf
-src/__pycache__
+__pycache__/

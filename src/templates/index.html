@@ -18,6 +18,10 @@
             --muted: color-mix(in srgb, var(--ink) 58%, transparent);
             --faint: color-mix(in srgb, var(--ink) 40%, transparent);
 
+            /* the one non-monochrome colour: the moving kernel has to stay
+               legible over any pixel it lands on, black ones included */
+            --accent: #0a84ff;
+
             /* ---------- TYPE ---------- */
             /* San Francisco on Apple platforms, with sane fallbacks elsewhere */
             --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
@@ -244,8 +248,47 @@
         .rail:has(#op-blur:checked) .f-ksize,
         .rail:has(#op-sharpen:checked) .f-cutoff,
         .rail:has(#op-sharpen:checked) .f-amount,
-        .rail:has(#op-edges:checked) .f-cutoff {
+        .rail:has(#op-edges:checked) .f-cutoff,
+        .rail:has(#op-denoise:checked) .f-noise,
+        .rail:has(#op-denoise:checked) .f-namt,
+        .rail:has(#op-denoise:checked) .f-filt,
+        .rail:has(#op-denoise:checked) .f-soft,
+        .rail:has(#op-denoise:checked) .f-view {
             display: block;
+        }
+
+        /* notch width or cutoff radius, never both: they belong to different
+           filters. The select's value cannot be reached from CSS, so a little
+           JS mirrors it onto the form as a data attribute. */
+        .rail:has(#op-denoise:checked)[data-filter="notch"] .f-nwidth,
+        .rail:has(#op-denoise:checked):not([data-filter="notch"]) .f-fcut {
+            display: block;
+        }
+
+        .rail:not([data-filter="notch"]) .hint-notch,
+        .rail[data-filter="notch"] .hint-lowpass {
+            display: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 9px 10px;
+            background: var(--bg);
+            border: 1px solid var(--line-2);
+            border-radius: var(--radius);
+            color: var(--ink);
+            font-family: var(--font);
+            font-size: var(--t-ui);
+            cursor: pointer;
+        }
+
+        select:hover {
+            border-color: var(--ink);
+        }
+
+        select:focus-visible {
+            outline: 1px solid var(--ink);
+            outline-offset: 2px;
         }
 
         /* hint text differs per operation for the shared cutoff control */
@@ -356,7 +399,8 @@
 
         .rail:has(#op-blur:checked) .run-blur,
         .rail:has(#op-sharpen:checked) .run-sharpen,
-        .rail:has(#op-edges:checked) .run-edges {
+        .rail:has(#op-edges:checked) .run-edges,
+        .rail:has(#op-denoise:checked) .run-denoise {
             display: block;
         }
 
@@ -570,6 +614,376 @@
             color: var(--muted);
         }
 
+
+        /* ---------- library comparison ---------- */
+
+        .cmp__head {
+            margin-top: 30px;
+        }
+
+        /* the exact call, sitting next to the LIBRARY caption */
+        .cmp__call {
+            margin-left: 8px;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+            font-size: .92em;
+            font-weight: 400;
+            letter-spacing: 0;
+            text-transform: none;
+            color: var(--ink);
+        }
+
+        .cmp__note {
+            max-width: 640px;
+            margin: 22px auto 0;
+            font-size: var(--t-small);
+            line-height: 1.55;
+            text-align: center;
+            color: var(--faint);
+        }
+
+        .cmp__note code {
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+            font-size: .92em;
+        }
+
+        .cmp__note b {
+            color: var(--ink);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ---------- method panel ---------- */
+
+        .recipe {
+            margin-top: 34px;
+            padding-bottom: 10px;
+        }
+
+        .recipe__grid {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 34px;
+            align-items: start;
+            padding-top: 22px;
+        }
+
+        @media (max-width: 1180px) {
+            .recipe__grid {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 26px;
+            }
+        }
+
+        .recipe__h {
+            margin: 0 0 12px;
+            font-size: var(--t-micro);
+            font-weight: 600;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        /* the call tree: monospace so the box-drawing lines stay aligned */
+        .flow {
+            margin: 0;
+            padding: 16px 18px;
+            overflow-x: auto;
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+            font-size: 12.5px;
+            line-height: 1.65;
+            color: var(--muted);
+            white-space: pre;
+        }
+
+        .flow b {
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .flow i {
+            font-style: normal;
+            color: var(--faint);
+        }
+
+        .eq {
+            display: flex;
+            gap: 12px;
+            padding: 11px 0;
+            border-top: 1px solid var(--line);
+        }
+
+        .eq:first-of-type {
+            border-top: none;
+            padding-top: 0;
+        }
+
+        /* the step number, tying each equation back to a line of the call tree */
+        .eq__n {
+            flex: none;
+            min-width: 22px;
+            padding-top: 1px;
+            font-size: var(--t-small);
+            font-weight: 600;
+            color: var(--faint);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .eq code {
+            display: block;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--ink);
+            overflow-x: auto;
+        }
+
+        .eq em {
+            display: block;
+            margin-top: 5px;
+            font-style: normal;
+            font-size: var(--t-small);
+            line-height: 1.55;
+            color: var(--muted);
+        }
+
+        .eq em em,
+        .eq em code {
+            font-style: italic;
+            color: var(--ink);
+        }
+
+        .eq sub,
+        .eq sup {
+            font-size: .74em;
+            line-height: 0;
+        }
+
+        .eq .sum {
+            font-size: 1.22em;
+            font-weight: 500;
+            vertical-align: -.06em;
+        }
+
+        .eq__or {
+            font-family: var(--font);
+            color: var(--faint);
+        }
+
+        /* ---------- visualiser toggle ---------- */
+
+        .viz-btn {
+            width: 100%;
+            margin-top: 14px;
+            padding: 10px;
+            background: var(--bg);
+            border: 1px solid var(--line-2);
+            border-radius: var(--radius);
+            color: var(--ink);
+            font-family: var(--font);
+            font-size: var(--t-small);
+            font-weight: 600;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: border-color 90ms ease-out, background 90ms ease-out, color 90ms ease-out;
+        }
+
+        .viz-btn:hover {
+            border-color: var(--ink);
+        }
+
+        .viz-btn[aria-pressed="true"] {
+            background: var(--ink);
+            border-color: var(--ink);
+            color: var(--bg);
+        }
+
+        /* ---------- convolution visualiser ---------- */
+
+        /* only meaningful for the box convolution, so it follows the same
+           :has() pattern the rail's own per-operation fields use */
+        .conv {
+            display: none;
+        }
+
+        body[data-viz="on"]:has(#op-blur:checked) .conv:not([hidden]) {
+            display: block;
+        }
+
+        /* the visualiser already shows the source, so the plain preview above it
+           is redundant once it is on screen */
+        body[data-viz="on"]:has(#op-blur:checked) .canvas:has(.conv:not([hidden])) .preview {
+            display: none;
+        }
+
+        .conv__grid {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 26px;
+            padding-top: 22px;
+        }
+
+        /* looks like a .plate__well but is deliberately a different class: the
+           click-to-magnify handler binds to .plate__well and expects an <img> */
+        .conv__well {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+        }
+
+        /* the overlay is a second canvas laid exactly over the first: the image
+           is written with putImageData, which ignores transforms and would wipe
+           any kernel box drawn onto the same surface */
+        .conv__stack {
+            position: relative;
+            line-height: 0;
+            cursor: crosshair;
+        }
+
+        .conv__stack canvas {
+            display: block;
+            max-width: var(--maxdim);
+            max-height: var(--maxdim);
+        }
+
+        .conv__image {
+            image-rendering: pixelated;
+        }
+
+        .conv__overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        /* one mode's panels and controls at a time */
+        .conv[data-mode="photo"] .is-cells,
+        .conv[data-mode="photo"] .cells-only,
+        .conv[data-mode="cells"] .is-photo,
+        .conv[data-mode="cells"] .photo-only {
+            display: none;
+        }
+
+        .conv__mode {
+            display: flex;
+            border: 1px solid var(--line-2);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .conv__mode button {
+            border: none;
+            border-radius: 0;
+            color: var(--muted);
+        }
+
+        .conv__mode button+button {
+            border-left: 1px solid var(--line-2);
+        }
+
+        .conv__mode button.is-on {
+            background: var(--ink);
+            color: var(--bg);
+        }
+
+        .conv__mode button:hover {
+            border-color: transparent;
+            color: var(--ink);
+        }
+
+        .conv__mode button.is-on:hover {
+            color: var(--bg);
+        }
+
+        /* the working area is wider than the two grids, so it takes its own row
+           rather than being squeezed alongside them */
+        .conv__calc {
+            flex-basis: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .conv__sub {
+            font-weight: 400;
+            color: var(--faint);
+            text-transform: none;
+            letter-spacing: .02em;
+        }
+
+        .conv__ctl {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 10px 18px;
+            padding-top: 22px;
+        }
+
+        .conv__ctl button {
+            padding: 9px 18px;
+            background: var(--bg);
+            border: 1px solid var(--line-2);
+            border-radius: var(--radius);
+            color: var(--ink);
+            font-family: var(--font);
+            font-size: var(--t-small);
+            font-weight: 600;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: border-color 90ms ease-out, transform 90ms ease-out;
+        }
+
+        .conv__ctl button:hover {
+            border-color: var(--ink);
+        }
+
+        .conv__ctl button:active {
+            transform: translateY(1px);
+        }
+
+        .conv__speed {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: var(--t-micro);
+            font-weight: 600;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .conv__speed input[type="range"] {
+            width: 130px;
+        }
+
+        .conv__speed b {
+            min-width: 92px;
+            color: var(--ink);
+            font-variant-numeric: tabular-nums;
+            text-transform: none;
+        }
+
+        .conv__hint {
+            max-width: 620px;
+            margin: 16px auto 0;
+            font-size: var(--t-small);
+            line-height: 1.55;
+            text-align: center;
+            color: var(--muted);
+        }
+
         @media (max-width: 900px) {
             .app {
                 grid-template-columns: 1fr;
@@ -591,11 +1005,11 @@
 <body>
 
     {# --- which operation produced this response, so the rail can restore itself --- #}
-    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'blur' %}
+    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'blur' %}
     {% set ks = ksize | string if ksize else '5' %}
     {% set cut = cutoff or edge_cutoff or '15' %}
     {% set amt = amount or '1' %}
-    {% set result = blurred or sharpened or edges %}
+    {% set result = blurred or sharpened or edges or denoised %}
 
     <div class="app">
 
@@ -641,6 +1055,14 @@
                         <span class="op__note">cft high-pass</span>
                     </label>
                 </div>
+
+                <div class="op">
+                    <input type="radio" name="op" id="op-denoise" value="denoise" {% if active=='denoise' %}checked{% endif %}>
+                    <label class="op__row" for="op-denoise">
+                        <span class="op__name">Denoise</span>
+                        <span class="op__note">fft notch</span>
+                    </label>
+                </div>
             </div>
 
             <div class="sect">
@@ -656,6 +1078,14 @@
                         size: on a 500 px image 3&times;3 takes about 0.9 s and 11&times;11
                         about 10 s.
                     </p>
+
+                    <button type="button" class="viz-btn" id="viz-toggle"
+                            aria-pressed="false">Show visualisation</button>
+                    <p class="hint">
+                        Off by default. Turn it on to watch the kernel cross the image before
+                        you run anything &mdash; it works on the file you have picked, in the
+                        browser, and does not change what the server returns.
+                    </p>
                 </div>
 
                 <div class="field f-cutoff">
@@ -666,13 +1096,82 @@
                         Everything closer than this radius to the centre of the frequency plane
                         is discarded, and what survives is added back as detail. A low cutoff
                         boosts broad structure and contrast; a high cutoff sharpens only the
-                        finest texture.
+                        finest texture. Roughly, cutoff c behaves like a blur radius of
+                        N&nbsp;/&nbsp;(2&pi;c) pixels, so on a 500&nbsp;px image c&nbsp;=&nbsp;40
+                        is about a 2&nbsp;px radius.
                     </p>
                     <p class="hint hint-edges">
                         Sets which frequencies count as an edge. Low values trace broad shapes
                         and give thick, soft outlines; high values keep only fine detail, giving
                         thinner and sparser lines.
                     </p>
+                </div>
+
+                <div class="field f-noise">
+                    <label class="label" for="noise">Noise</label>
+                    <select name="noise" id="noise">
+                        <option value="periodic" {% if noise=='periodic' %}selected{% endif %}>Periodic stripes</option>
+                        <option value="grain" {% if noise=='grain' %}selected{% endif %}>Grain</option>
+                        <option value="both" {% if noise=='both' %}selected{% endif %}>Both</option>
+                    </select>
+                    <p class="hint">
+                        Stripes are a few sinusoids, so in the spectrum they are a handful of
+                        isolated bright points and nothing else &mdash; cut those and the
+                        picture survives. Grain is spread over every frequency at once, so
+                        there is no small set of bins to remove.
+                    </p>
+                </div>
+
+                <div class="field f-namt">
+                    <label class="label" for="noise_amount">Noise amount <b class="val" id="v-noise_amount" aria-hidden="true"></b></label>
+                    <input type="range" name="noise_amount" id="noise_amount"
+                           min="0.05" max="0.6" step="0.05" value="{{ noise_amount or '0.3' }}">
+                </div>
+
+                <div class="field f-filt">
+                    <label class="label" for="filter">Filter</label>
+                    <select name="filter" id="filter">
+                        <option value="notch" {% if filt=='notch' %}selected{% endif %}>Notch the peaks</option>
+                        <option value="gaussian" {% if filt=='gaussian' %}selected{% endif %}>Gaussian low-pass</option>
+                        <option value="ideal" {% if filt=='ideal' %}selected{% endif %}>Hard circular low-pass</option>
+                    </select>
+                    <p class="hint hint-notch">
+                        Finds the bright points itself and punches a hole at each. It does not
+                        know what noise was added, so it behaves the same on an image that
+                        arrived already striped.
+                    </p>
+                    <p class="hint hint-lowpass">
+                        Keeps a disc around the centre and drops the rest. This is the only
+                        thing that touches grain, and it costs detail: fine texture lives in
+                        the frequencies being discarded. The hard version also rings.
+                    </p>
+                </div>
+
+                <div class="field f-nwidth">
+                    <label class="label" for="nwidth">Notch width <b class="val" id="v-nwidth" aria-hidden="true"></b></label>
+                    <input type="range" name="nwidth" id="nwidth" min="0.5" max="12" step="0.5" value="{{ nwidth or '3' }}">
+                    <p class="hint">How big a hole to punch at each peak. Too narrow leaves the stripe behind; too wide starts taking real detail with it.</p>
+                </div>
+
+                <div class="field f-fcut">
+                    <label class="label" for="fcut">Cutoff radius <b class="val" id="v-fcut" aria-hidden="true"></b></label>
+                    <input type="range" name="fcut" id="fcut" min="4" max="120" step="1" value="{{ fcut or '45' }}">
+                    <p class="hint">Radius of the disc that survives, in frequency bins.</p>
+                </div>
+
+                <div class="field f-soft">
+                    <label class="label" for="softness">Softness <b class="val" id="v-softness" aria-hidden="true"></b></label>
+                    <input type="range" name="softness" id="softness" min="0" max="100" step="5" value="{{ softness or '20' }}">
+                    <p class="hint">How gradually the filter fades from kept to discarded. Zero is a hard edge, which rings.</p>
+                </div>
+
+                <div class="field f-view">
+                    <label class="label" for="specview">Spectrum panel</label>
+                    <select name="specview" id="specview">
+                        <option value="mask" {% if specview=='mask' %}selected{% endif %}>Spectrum with mask</option>
+                        <option value="spectrum" {% if specview=='spectrum' %}selected{% endif %}>Spectrum only</option>
+                        <option value="removed" {% if specview=='removed' %}selected{% endif %}>Discarded only</option>
+                    </select>
                 </div>
 
                 <div class="field f-amount">
@@ -691,6 +1190,7 @@
                 <button type="submit" class="run-blur" formaction="/blur">Apply blur</button>
                 <button type="submit" class="run-sharpen" formaction="/sharpen">Apply sharpen</button>
                 <button type="submit" class="run-edges" formaction="/edges">Detect edges</button>
+                <button type="submit" class="run-denoise" formaction="/denoise">Denoise</button>
             </div>
 
         </form>
@@ -718,17 +1218,122 @@
                 </div>
             </section>
 
+            {# --- the box convolution, animated in the browser on the picked file --- #}
+            <section class="conv" id="conv" hidden>
+                <div class="meta">
+                    <b>Convolution</b>
+                    <i>&middot;</i> <span id="conv-k">5 &times; 5</span> box kernel
+                    <i>&middot;</i> <span id="conv-pos">&mdash;</span>
+                    <i>&middot;</i> <u id="conv-pct">0.0%</u>
+                </div>
+
+                <div class="conv__grid is-photo">
+                    <div class="plate">
+                        <div class="plate__bar"><span>Original</span> <span class="conv__sub">kernel position</span></div>
+                        <div class="conv__well">
+                            <div class="conv__stack" id="conv-stack">
+                                <canvas class="conv__image" id="conv-image"></canvas>
+                                <canvas class="conv__overlay" id="conv-overlay"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="plate">
+                        <div class="plate__bar"><span>Output</span> <span id="conv-zoomf"></span></div>
+                        <div class="conv__well">
+                            <canvas id="conv-zoom"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="plate">
+                        <div class="plate__bar"><span>Kernel</span></div>
+                        <div class="conv__well">
+                            <canvas id="conv-kernel"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                {# --- the same convolution on a grid small enough to print the
+                       numbers in, which is the only way the arithmetic is
+                       readable. Greyscale, so each cell is one value. --- #}
+                <div class="conv__grid is-cells">
+                    <div class="plate">
+                        <div class="plate__bar"><span>Input</span> <span id="conv-gdims"></span></div>
+                        <div class="conv__well">
+                            <canvas id="conv-gin"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="plate">
+                        <div class="plate__bar"><span>Output</span></div>
+                        <div class="conv__well">
+                            <canvas id="conv-gout"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="plate conv__calc">
+                        <div class="plate__bar"><span>This pixel</span></div>
+                        <div class="conv__well">
+                            <canvas id="conv-calc"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="conv__ctl">
+                    <span class="conv__mode">
+                        <button type="button" id="conv-mode-photo" class="is-on">Photo</button>
+                        <button type="button" id="conv-mode-grid">Grid</button>
+                    </span>
+                    <button type="button" id="conv-play">Play</button>
+                    <button type="button" id="conv-step">Step</button>
+                    <button type="button" id="conv-reset">Reset</button>
+                    <span class="conv__speed">
+                        Speed
+                        <input type="range" id="conv-speed" min="0" max="5" step="1" value="3">
+                        <b id="v-conv-speed"></b>
+                    </span>
+                    <span class="conv__speed photo-only">
+                        Zoom
+                        <input type="range" id="conv-zoom-level" min="0" max="9" step="1" value="7">
+                        <b id="v-conv-zoom">14&times;</b>
+                    </span>
+                    <span class="conv__speed cells-only">
+                        Grid
+                        <input type="range" id="conv-grid-size" min="0" max="5" step="1" value="2">
+                        <b id="v-conv-grid">10</b>
+                    </span>
+                </div>
+
+                <p class="conv__hint photo-only">
+                    The same loop <code>convolve2d</code> runs, one output pixel at a time.
+                    Left is your image untouched, with the kernel walking over it; right is
+                    the output, empty until each pixel is computed. Click the original to
+                    jump the run there, or drop the speed to 1&nbsp;px to watch the kernel
+                    move a single step per frame. Set zoom to <em>fit</em> to see the whole
+                    output beside the whole input; the wheel works over the panel too.
+                </p>
+                <p class="conv__hint cells-only">
+                    Your image, reduced to a grid coarse enough to watch. The kernel
+                    carries its weights and eases from cell to cell; each stop multiplies
+                    the pixels under it by those weights and sums them into one output
+                    cell. All three colour channels, exactly as <code>convolve2d</code>
+                    does it &mdash; the working panel breaks one stop down into its terms.
+                    Coarse grids show the arithmetic but lose the picture; raise the grid
+                    slider until the photo reads, at the cost of the weights being too
+                    small to print on the kernel.
+                </p>
+            </section>
+
             {% if result %}
 
+            {% if denoised %}
             <section id="result">
                 <div class="meta">
-                    {% if blurred %}
-                    <b>Blur</b> <i>&middot;</i> {{ ksize }} &times; {{ ksize }} box kernel
-                    {% elif sharpened %}
-                    <b>Sharpen</b> <i>&middot;</i> cutoff {{ cutoff }} <i>&middot;</i> amount {{ amount }}
-                    {% else %}
-                    <b>Edge detect</b> <i>&middot;</i> cutoff {{ edge_cutoff }}
-                    {% endif %}
+                    <b>Denoise</b>
+                    <i>&middot;</i> {{ noise }} noise at {{ noise_amount }}
+                    <i>&middot;</i> {% if filt == 'notch' %}notch, {{ peaks }} peak{{ '' if peaks == 1 else 's' }} found,
+                    width {{ nwidth }}{% else %}{{ filt }} low-pass, cutoff {{ fcut }}{% endif %}
+                    <i>&middot;</i> {{ kept }}% of the spectrum kept
                     <i>&middot;</i> {{ size | replace(' x ', ' × ') }}
                     <i>&middot;</i> <u>{{ elapsed }} s</u>
                 </div>
@@ -742,14 +1347,121 @@
                     </div>
 
                     <div class="plate">
-                        {% if blurred %}
-                        {% set out_label, out_file = 'Blurred', 'blur-' ~ ksize ~ 'x' ~ ksize %}
-                        {% elif sharpened %}
-                        {% set out_label, out_file = 'Sharpened', 'sharpen-c' ~ cutoff ~ '-a' ~ amount %}
-                        {% else %}
-                        {% set out_label, out_file = 'Edges', 'edges-c' ~ edge_cutoff %}
-                        {% endif %}
+                        <div class="plate__bar">
+                            <span>Noisy</span>
+                            {% if psnr_noisy %}<span class="conv__sub">{{ psnr_noisy }} dB</span>{% endif %}
+                        </div>
+                        <div class="plate__well" data-cap="Noisy input">
+                            <img src="{{ noisy }}" alt="Noisy image">
+                        </div>
+                    </div>
+                </div>
 
+                <div class="pair">
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Spectrum</span>
+                            <span class="conv__sub">log |X|, centred &middot; {{ spec_size }}</span>
+                        </div>
+                        <div class="plate__well" data-cap="Spectrum — {{ spec_size }}">
+                            <img src="{{ spectrum }}" alt="Frequency spectrum">
+                        </div>
+                    </div>
+
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Denoised</span>
+                            {% if psnr_clean %}<span class="conv__sub">{{ psnr_clean }} dB</span>{% endif %}
+                            <a class="save" href="{{ denoised }}" download="denoised.png">Save png</a>
+                        </div>
+                        <div class="plate__well" data-cap="Denoised">
+                            <img src="{{ denoised }}" alt="Denoised image">
+                        </div>
+                    </div>
+                </div>
+
+                <p class="cmp__note">
+                    {% if filt == 'notch' and peaks == 0 %}
+                    No peak stood far enough above the rest of the spectrum to be called
+                    noise, so nothing was removed &mdash; which is the honest answer for
+                    grain. Grain is spread over every frequency at once, so there is no small
+                    set of bins to cut. Try a low-pass, and watch it take detail along with
+                    the noise.
+                    {% elif filt == 'notch' %}
+                    {{ peaks }} peaks removed, {{ kept }}% of the spectrum kept. The stripes
+                    were a few sinusoids, so they occupied a few bins, so almost the whole
+                    picture came through untouched &mdash; compare the dB figures above.
+                    {% else %}
+                    Everything outside a radius of {{ fcut }} was discarded, keeping {{ kept }}%
+                    of the spectrum. This is the only filter that reaches grain, and the cost
+                    is detail: fine texture lives out in the frequencies being thrown away.
+                    {% endif %}
+                </p>
+
+                {% if library %}
+                {# --- the identical mask, applied with numpy's FFT instead of ours.
+                       Same algorithm this time, so the numbers do mean something:
+                       what they measure is transforms.py itself. --- #}
+                <div class="meta cmp__head">
+                    <b>Library</b>
+                    <i>&middot;</i> numpy
+                    <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+                    {% if speedup %}<i>&middot;</i> {{ speedup }}&times; faster{% endif %}
+                </div>
+
+                <div class="pair">
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                            <a class="save" href="{{ library }}" download="denoised-numpy.png">Save png</a>
+                        </div>
+                        <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                            <img src="{{ library }}" alt="Denoised using numpy's FFT">
+                        </div>
+                    </div>
+                </div>
+
+                <p class="cmp__note">
+                    The same mask, the same multiply, the same inverse &mdash; only the
+                    transform is swapped. So this is a direct test of
+                    <code>transforms.py</code>: the largest difference of any channel value
+                    is <b>{{ stats.max }}</b> out of 255, with <b>{{ stats.within1 }}%</b>
+                    within 1. The radix-2 butterflies agree with numpy's FFT. The time
+                    column is the honest cost of writing them in Python.
+                </p>
+                {% endif %}
+            </section>
+            {% else %}
+            <section id="result">
+                <div class="meta">
+                    {% if blurred %}
+                    <b>Blur</b> <i>&middot;</i> {{ ksize }} &times; {{ ksize }} box kernel
+                    {% elif sharpened %}
+                    <b>Sharpen</b> <i>&middot;</i> cutoff {{ cutoff }} <i>&middot;</i> amount {{ amount }}
+                    {% else %}
+                    <b>Edge detect</b> <i>&middot;</i> cutoff {{ edge_cutoff }}
+                    {% endif %}
+                    <i>&middot;</i> {{ size | replace(' x ', ' × ') }}
+                    <i>&middot;</i> <u>{{ elapsed }} s</u>
+                </div>
+
+                {% if blurred %}
+                {% set out_label, out_file = 'Blurred', 'blur-' ~ ksize ~ 'x' ~ ksize %}
+                {% elif sharpened %}
+                {% set out_label, out_file = 'Sharpened', 'sharpen-c' ~ cutoff ~ '-a' ~ amount %}
+                {% else %}
+                {% set out_label, out_file = 'Edges', 'edges-c' ~ edge_cutoff %}
+                {% endif %}
+
+                <div class="pair">
+                    <div class="plate">
+                        <div class="plate__bar"><span>Original</span></div>
+                        <div class="plate__well" data-cap="Original">
+                            <img src="{{ original }}" alt="Original image">
+                        </div>
+                    </div>
+
+                    <div class="plate">
                         <div class="plate__bar">
                             <span>{{ out_label }}</span>
                             <a class="save" href="{{ result }}" download="{{ out_file }}.png">Save png</a>
@@ -757,6 +1469,203 @@
                         <div class="plate__well" data-cap="{{ out_label }}">
                             <img src="{{ result }}" alt="{{ out_label }} image">
                         </div>
+                    </div>
+                </div>
+
+                {% if library %}
+                {# --- the same job handed to a library, for comparison --- #}
+                <div class="meta cmp__head">
+                    <b>Library</b>
+                    <i>&middot;</i> Pillow
+                    <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+                    {% if speedup %}<i>&middot;</i> {{ speedup }}&times; faster{% endif %}
+                </div>
+
+                <div class="pair">
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                            <a class="save" href="{{ library }}" download="{{ out_file }}-pillow.png">Save png</a>
+                        </div>
+                        <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                            <img src="{{ library }}" alt="Produced by {{ lib_call }}">
+                        </div>
+                    </div>
+                </div>
+
+                {% if different_method %}
+                <p class="cmp__note">
+                    Not the same algorithm, so the two will not match pixel for pixel.
+                    {% if edges %}
+                    <code>FIND_EDGES</code> is a fixed 3&times;3 spatial kernel, while ours
+                    discards low frequencies and transforms back &mdash; which is why it has
+                    no cutoff to set. Inverted here so both draw dark lines on white.
+                    {% else %}
+                    <code>UnsharpMask</code> subtracts a Gaussian blur in the spatial domain,
+                    while ours removes the low frequencies from a Fourier transform. The
+                    parameters were mapped by sense rather than by equivalence: amount became
+                    percent, and a high cutoff became a small radius, since both keep only
+                    finer detail.
+                    {% endif %}
+                </p>
+                {% else %}
+                <p class="cmp__note">
+                    <b>{{ stats.max }}</b> is the largest difference of any channel value, out
+                    of 255, and <b>{{ stats.within1 }}%</b> are within 1 &mdash; the two images
+                    are the same picture. Pillow replicates the border as well, so they agree
+                    at the edges too. What is left is rounding: <code>convolve2d</code> ends
+                    with <code>astype(np.uint8)</code>, which truncates, while Pillow rounds
+                    and works in fixed-point internally.
+                </p>
+                {% endif %}
+                {% endif %}
+            </section>
+            {% endif %}
+
+            {# ================= how the result was produced ================= #}
+            <section class="recipe">
+                <div class="meta"><b>Method</b> <i>&middot;</i> call flow and equations</div>
+
+                <div class="recipe__grid">
+                    <div class="recipe__col">
+                        <h4 class="recipe__h">Flow</h4>
+
+{% if blurred %}
+<pre class="flow">blur()                                <i>app2.py</i>
+ ├─ Image.open(file).convert("RGB")
+ ├─ img.thumbnail((500, 500))
+ ├─ <b>box_kernel</b>(k)                   ①
+ └─ for c in (R, G, B):
+     └─ <b>convolve2d</b>(channel, kernel)
+         ├─ kernel[::-1, ::-1]      ②
+         ├─ np.pad(…, mode="edge")  ③
+         └─ four nested loops       ④
+ → np.clip(…).astype(np.uint8)      ⑤</pre>
+{% elif sharpened %}
+<pre class="flow">sharpen()                             <i>app2.py</i>
+ └─ for c in (R, G, B):
+     ├─ <b>high_pass_detail</b>(channel, D₀)
+     │   ├─ <b>spatial_axes</b>(H, W)     ①
+     │   ├─ <b>frequency_axes</b>(x, y)   ②
+     │   ├─ <b>compute_cft</b>(…)         ③
+     │   ├─ <b>high_pass</b>(re, im, D₀)  ④
+     │   └─ <b>reconstruct</b>(…)         ⑤
+     └─ source + amount · detail   ⑥</pre>
+{% elif edges %}
+<pre class="flow">edges()                               <i>app2.py</i>
+ ├─ <b>to_grayscale</b>(rgb)        ①
+ └─ <b>edge_map</b>(gray, D₀)
+     ├─ <b>high_pass_detail</b>(…)  ②
+     │   ├─ <b>spatial_axes</b> / <b>frequency_axes</b>
+     │   ├─ <b>compute_cft</b>(…)   ③
+     │   ├─ <b>high_pass</b>(…)     ④
+     │   └─ <b>reconstruct</b>(…)   ⑤
+     ├─ np.abs(…) / peak     ⑥
+     └─ 1 − edges            ⑦</pre>
+{% else %}
+<pre class="flow">denoise_view()                        <i>app2.py</i>
+ ├─ img.thumbnail((256, 256))
+ ├─ <b>add_noise</b>(clean, kind, amt)   ①  <i>denoise.py</i>
+ ├─ <b>pad_to_pow2</b>(noisy)            ②
+ ├─ <b>luma</b>(padded)
+ ├─ <b>fft2</b>(luma)                    ③
+ │   ├─ <b>FFTTransformer.transform</b>  ④  <i>transforms.py</i>
+ │   │      · once per row
+ │   └─ <b>FFTTransformer.transform</b>
+ │          · once per column
+ ├─ <b>shift</b>(…)              DC to centre
+ ├─ <b>mask_{{ filt }}</b>(…){{ ' ' * (8 - filt|length) }}              ⑤
+ └─ <b>filter_channels</b>(noisy, mask)  ⑥
+     └─ per channel:
+        fft2 → shift → ×M → unshift
+             → <b>ifft2</b> → real       ⑦</pre>
+{% endif %}
+                    </div>
+
+                    <div class="recipe__col">
+                        <h4 class="recipe__h">Equations</h4>
+
+{% if blurred %}
+                        <div class="eq"><span class="eq__n">①</span><div>
+                            <code>K[i,j] = 1 / k²</code>
+                            <em>Box kernel. Every weight equal, and summing to 1 so the average brightness is unchanged.</em></div></div>
+                        <div class="eq"><span class="eq__n">②</span><div>
+                            <code>K̃[i,j] = K[k−1−i, k−1−j]</code>
+                            <em>The flip is what makes this convolution rather than correlation. A box kernel is symmetric, so here it changes nothing.</em></div></div>
+                        <div class="eq"><span class="eq__n">③</span><div>
+                            <code>pad[y,x] = src[clamp(y−p, 0, H−1), clamp(x−p, 0, W−1)],&nbsp;&nbsp; p = ⌊k/2⌋</code>
+                            <em>Replicating the border keeps the output the same size as the input.</em></div></div>
+                        <div class="eq"><span class="eq__n">④</span><div>
+                            <code>out[y,x] = <span class="sum">Σ</span><sub>ky=0</sub><sup>k−1</sup> <span class="sum">Σ</span><sub>kx=0</sub><sup>k−1</sup> pad[y+ky, x+kx] · K̃[ky,kx]</code>
+                            <em>One multiply-accumulate per kernel cell, per output pixel, per channel. Cost is O(H·W·k²) — which is why the times climb with k.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑤</span><div>
+                            <code>clip(·, 0, 255) → uint8</code>
+                            <em><code>astype</code> truncates rather than rounds, which is the whole of the difference from Pillow.</em></div></div>
+{% elif sharpened or edges %}
+{% if edges %}
+                        <div class="eq"><span class="eq__n">①</span><div>
+                            <code>L = 0.299·R + 0.587·G + 0.114·B,&nbsp;&nbsp; L ← L / max(L)</code>
+                            <em>ITU-R 601-2 luma, then scaled to 0…1.</em></div></div>
+{% endif %}
+                        <div class="eq"><span class="eq__n">{% if edges %}—{% else %}①{% endif %}</span><div>
+                            <code>x = linspace(−1, 1, W),&nbsp;&nbsp; y = linspace(−1, 1, H)</code>
+                            <em>The image is treated as a function on a continuous square, not as a sequence of samples.</em></div></div>
+                        <div class="eq"><span class="eq__n">{% if edges %}—{% else %}②{% endif %}</span><div>
+                            <code>u ∈ [ −1/(2Δx), 1/(2Δx) ],&nbsp;&nbsp; v ∈ [ −1/(2Δy), 1/(2Δy) ]</code>
+                            <em>The Nyquist limit: the highest frequency a grid of this spacing can carry.</em></div></div>
+                        <div class="eq"><span class="eq__n">③</span><div>
+                            <code>F(u,v) = ∬ f(x,y) · e<sup>−2πi(ux+vy)</sup> dx dy</code>
+                            <em>The continuous transform, evaluated by the trapezoidal rule (<code>np.trapezoid</code>) rather than by a DFT. Split into cos and sin parts so it stays in real arithmetic.</em></div></div>
+                        <div class="eq"><span class="eq__n">④</span><div>
+                            <code>F′(u,v) = F(u,v) · [ 1 − e<sup>−D(u,v)² / 2D₀²</sup> ],&nbsp;&nbsp; D = √( (v/Δv)² + (u/Δu)² )</code>
+                            <em>A Gaussian low-pass subtracted from everything, which is unsharp masking done in the frequency domain. The edge has to be smooth: a hard circle here is a sinc in the image, so every edge would come back wrapped in ripples spreading across the whole picture. The radius is measured off the u and v axes rather than off array indices, because <code>linspace(−N, N, even)</code> has no exact zero bin to centre on.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑤</span><div>
+                            <code>detail(x,y) = ∬ F′(u,v) · e<sup>+2πi(ux+vy)</sup> du dv</code>
+                            <em>Back to the image. What survives is only the fast-changing part — edges and texture.</em></div></div>
+{% if edges %}
+                        <div class="eq"><span class="eq__n">⑥⑦</span><div>
+                            <code>E = |detail| / max|detail|,&nbsp;&nbsp; out = 1 − E</code>
+                            <em>Magnitude, normalised, then inverted so edges are dark on white.</em></div></div>
+{% else %}
+                        <div class="eq"><span class="eq__n">⑥</span><div>
+                            <code>g(x,y) = f(x,y) + amount · detail(x,y)</code>
+                            <em>The detail is added back on top. Past about 2 it overshoots and haloes appear along strong edges. A Gaussian of spatial width r matches a frequency width N/(2πr), which is how the Pillow radius below is derived rather than guessed.</em></div></div>
+{% endif %}
+{% else %}
+                        <div class="eq"><span class="eq__n">①</span><div>
+                            <code>n(x,y) = A · sin( 2π( f<sub>x</sub>·x/W + f<sub>y</sub>·y/H ) )&nbsp;&nbsp;<span class="eq__or">and / or</span>&nbsp;&nbsp; 𝒩(0, σ²)</code>
+                            <em>A sinusoid is a handful of points in the spectrum. Gaussian grain is spread evenly over all of it — which is exactly why one is removable and the other is not.</em></div></div>
+                        <div class="eq"><span class="eq__n">②</span><div>
+                            <code>reflect-pad to M, N = next_power_of_two(H), next_power_of_two(W)</code>
+                            <em>Radix-2 needs a power of two. Reflecting rather than zero-filling avoids a hard edge, which would be a step, and a step is broadband — it would scatter energy over the whole spectrum and bury the peaks.</em></div></div>
+                        <div class="eq"><span class="eq__n">③</span><div>
+                            <code>X[u,v] = <span class="sum">Σ</span><sub>m</sub> e<sup>−2πi·um/M</sup> [ <span class="sum">Σ</span><sub>n</sub> x[m,n] · e<sup>−2πi·vn/N</sup> ]</code>
+                            <em>The 2D transform is separable: the bracket is a transform of one row, and the outer sum is then a transform down each column of that result.</em></div></div>
+                        <div class="eq"><span class="eq__n">④</span><div>
+                            <code>X[k] = E[k] + W<sub>N</sub><sup>k</sup>·O[k],&nbsp;&nbsp; X[k+N/2] = E[k] − W<sub>N</sub><sup>k</sup>·O[k],&nbsp;&nbsp; W<sub>N</sub> = e<sup>−2πi/N</sup></code>
+                            <em>The radix-2 butterfly. Splitting even from odd indices turns O(N²) into O(N log N); the inverse reuses it as <code>conj(transform(conj(X)))/N</code>.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑤</span><div>
+{% if filt == 'notch' %}
+                            <code>M[u,v] = <span class="sum">Π</span><sub>p</sub> ( 1 − e<sup>−D<sub>p</sub>²/2σ²</sup> ),&nbsp;&nbsp; D<sub>p</sub> = distance to peak p</code>
+                            <em>A hole at each detected peak. A peak counts as noise when it exceeds 4× the 99.9th percentile of the rest of the spectrum — measured, a real sinusoid reaches about 13× and pure grain only 1.8×.</em>
+{% elif filt == 'gaussian' %}
+                            <code>M[u,v] = e<sup>−D(u,v)² / 2σ²</sup>,&nbsp;&nbsp; D = √((u−N/2)² + (v−M/2)²)</code>
+                            <em>Fades out with distance from the centre instead of cutting. No ringing, but everything fine gets attenuated.</em>
+{% else %}
+                            <code>M[u,v] = [ D(u,v) ≤ D₀ ]</code>
+                            <em>A hard circle. The sharp edge in frequency is a sinc in the image, which is where the ringing around edges comes from.</em>
+{% endif %}
+                        </div></div>
+                        <div class="eq"><span class="eq__n">⑥</span><div>
+                            <code>X<sub>clean</sub>[u,v] = X<sub>noisy</sub>[u,v] · M[u,v]</code>
+                            <em>Filtering is a single multiply in the frequency domain — the same operation that would be an expensive convolution in the image domain.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑦</span><div>
+                            <code>x[m,n] = (1/MN) <span class="sum">Σ</span><sub>u</sub> <span class="sum">Σ</span><sub>v</sub> X[u,v] · e<sup>+2πi(um/M + vn/N)</sup></code>
+                            <em>Back to the image, and the imaginary part is discarded — it is round-off, since the input was real.</em></div></div>
+                        <div class="eq"><span class="eq__n">dB</span><div>
+                            <code>PSNR = 10 · log₁₀( 1 / MSE ),&nbsp;&nbsp; MSE = mean( (a − b)² )</code>
+                            <em>Reported against the clean original, so the two figures above say how much of the damage was undone. Higher is better; +6 dB is roughly halving the error.</em></div></div>
+{% endif %}
                     </div>
                 </div>
             </section>
@@ -801,6 +1710,15 @@
             readout('ksize', function (v) { return v + ' × ' + v; });
             readout('cutoff', function (v) { return v; });
             readout('amount', function (v) { return parseFloat(v).toFixed(1); });
+            readout('noise_amount', function (v) { return Math.round(v * 100) + '%'; });
+            readout('nwidth', function (v) { return v + ' px'; });
+            readout('fcut', function (v) { return v + ' px'; });
+            readout('softness', function (v) { return v; });
+
+            // CSS cannot see a select's value, so it is mirrored onto the form
+            // and the notch / low-pass controls key off that
+            var filterSel = document.getElementById('filter');
+            function syncFilter() { form.dataset.filter = filterSel.value; }
 
             // 1. name the chosen file, and show it in the canvas straight away.
             //    any result on screen was computed from a previous pick, so it goes.
@@ -833,6 +1751,9 @@
 
             // 2. hold the button while the server works
             var form = document.querySelector('.rail');
+
+            filterSel.addEventListener('change', syncFilter);
+            syncFilter();
 
             form.addEventListener('submit', function (e) {
                 var btn = e.submitter;
@@ -890,6 +1811,34 @@
             });
         })();
     </script>
+
+    <script>
+        window.MAX_DIM = {{ MAX_DIM | default(500) }};
+
+        // The visualiser is opt-in and the page reloads on every run, so the
+        // choice is remembered per browser. Wrapped because storage throws
+        // outright in a few contexts rather than just coming back empty.
+        (function () {
+            var btn = document.getElementById('viz-toggle');
+            var KEY = 'conv-viz';
+
+            function apply(on, save) {
+                document.body.dataset.viz = on ? 'on' : 'off';
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                btn.textContent = on ? 'Hide visualisation' : 'Show visualisation';
+                if (save) { try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch (e) { } }
+            }
+
+            var saved = 'off';
+            try { saved = localStorage.getItem(KEY) || 'off'; } catch (e) { }
+            apply(saved === 'on', false);
+
+            btn.addEventListener('click', function () {
+                apply(btn.getAttribute('aria-pressed') !== 'true', true);
+            });
+        })();
+    </script>
+    <script src="{{ url_for('static', filename='conv-viz.js') }}"></script>
 
 </body>
 

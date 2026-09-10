@@ -4,7 +4,9 @@ import time
 
 import numpy as np
 from flask import Flask, render_template, request
-from PIL import Image
+from PIL import Image, ImageFilter
+
+import denoise
 
 app = Flask(__name__)
 
@@ -91,11 +93,31 @@ def compute_cft(channel, x, y, u, v):
     return real, imag
 
 
-def high_pass(real, imag, cutoff):
-    rows, cols = real.shape
-    i = np.arange(rows)[:, None] - rows // 2
-    j = np.arange(cols)[None, :] - cols // 2
-    mask = np.sqrt(i ** 2 + j ** 2) > cutoff
+def high_pass(real, imag, cutoff, u, v):
+    """Drop the low frequencies, keeping what changes quickly.
+
+    Two things here are easy to get wrong, and both were:
+
+    1. The radius is measured off the u and v axes rather than off array
+       indices. frequency_axes returns linspace(-Nyquist, +Nyquist, N), which
+       for an even N has no exact zero bin -- u[N//2] sits half a bin above
+       zero. Centring the mask on index N//2 therefore centres it half a bin
+       off DC, which tilts the whole filter.
+
+    2. The edge is a Gaussian, not a step. A hard circle in the frequency plane
+       is a sinc in the image plane, so every edge comes back wrapped in
+       ripples that spread across the entire picture -- the Gibbs phenomenon.
+       That is what made the old output look nothing like an unsharp mask.
+       Fading out over `cutoff` instead removes the ripples entirely.
+
+    The mask is 1 - exp(-D^2 / 2c^2): a Gaussian low-pass subtracted from
+    everything, which is precisely unsharp masking done in the frequency
+    domain. `cutoff` is in bins, so it keeps the meaning it had before.
+    """
+    du = u[1] - u[0]
+    dv = v[1] - v[0]
+    d = np.sqrt((v[:, None] / dv) ** 2 + (u[None, :] / du) ** 2)
+    mask = 1.0 - np.exp(-(d ** 2) / (2.0 * max(cutoff, 1e-6) ** 2))
     return real * mask, imag * mask
 
 
@@ -121,7 +143,7 @@ def high_pass_detail(channel, cutoff):
     x, y = spatial_axes(channel.shape[0], channel.shape[1])
     u, v = frequency_axes(x, y)
     real, imag = compute_cft(channel, x, y, u, v)
-    real, imag = high_pass(real, imag, cutoff)
+    real, imag = high_pass(real, imag, cutoff, u, v)
     return reconstruct(real, imag, u, v, x, y)
 
 
@@ -141,11 +163,112 @@ def edge_map(channel, cutoff):
     return 1 - edges
 
 
+def library_blur(img, ksize):
+    """The same box blur, done by Pillow.
+
+    BoxBlur's radius counts pixels either side of the centre, so a k x k kernel
+    is radius (k - 1) / 2. It pads by replicating the border, exactly as
+    convolve2d does, so the two really are the same operation and can be
+    compared number for number.
+    """
+    return np.asarray(img.filter(ImageFilter.BoxBlur((ksize - 1) / 2)), dtype=np.uint8)
+
+
+def library_sharpen(img, cutoff, amount):
+    """Pillow's sharpen, which is not the same method.
+
+    UnsharpMask subtracts a Gaussian blur in the spatial domain; ours subtracts
+    a Gaussian low-pass in the frequency domain. Those are the same operation
+    seen from two sides, so the parameters do translate: a Gaussian of spatial
+    width r has frequency width N / (2*pi*r).
+    """
+    # A Gaussian of spatial width r corresponds to a frequency width N/(2*pi*r),
+    # so inverting that gives the radius matching our cutoff. Measured against
+    # UnsharpMask this lands within one step every time.
+    side = float(np.sqrt(img.size[0] * img.size[1]))
+    radius = float(np.clip(side / (2.0 * np.pi * max(cutoff, 1.0)), 0.3, 20.0))
+    percent = int(np.clip(amount * 100.0, 0, 500))
+    return (
+        # threshold 0: UnsharpMask normally skips areas whose local contrast is
+        # under the threshold, and we have no equivalent, so leaving it on would
+        # be comparing against a filter doing something extra
+        np.asarray(img.filter(ImageFilter.UnsharpMask(radius, percent, 0)), dtype=np.uint8),
+        "ImageFilter.UnsharpMask({:.2f}, {}, 0)".format(radius, percent),
+    )
+
+
+def library_edges(img):
+    """Pillow's edge detector, which is also not the same method.
+
+    FIND_EDGES is a fixed 3x3 spatial kernel; ours discards low frequencies and
+    transforms back. It takes no parameters, so the cutoff slider has nothing to
+    map onto. Inverted to match ours, which draws dark lines on white.
+    """
+    return 255 - np.asarray(img.convert("L").filter(ImageFilter.FIND_EDGES), dtype=np.uint8)
+
+
+def compare(a, b):
+    """How far apart two uint8 images are. Only meaningful when the two were
+    produced by the same operation, which is true of the blur and nothing else."""
+    d = np.abs(a.astype(np.int16) - b.astype(np.int16))
+    return {
+        "max": int(d.max()),
+        "within1": "{:.1f}".format(100.0 * float((d <= 1).mean())),
+    }
+
+
 def to_data_uri(arr):
     """Encode a uint8 image array as a base64 PNG so it can go straight into <img>."""
     buf = io.BytesIO()
     Image.fromarray(arr).save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def spectrum_plate(mag, mask, view):
+    """Draw the spectrum, with the mask shown over it.
+
+    Log scaled, because the centre bin is orders of magnitude above everything
+    else and a linear scale is a single white dot on black.
+    """
+    s = denoise.spectrum_picture(mag)
+
+    if view == "spectrum":
+        rgb = np.stack([s] * 3, axis=-1)
+    elif view == "removed":
+        rgb = np.stack([s * (1.0 - mask)] * 3, axis=-1)
+    else:
+        # kept frequencies stay grey; discarded ones are tinted, floored so they
+        # are visible even out where the spectrum is nearly black
+        accent = np.array([0.04, 0.52, 1.0])
+        keep = mask[..., None]
+        gone = (1.0 - mask)[..., None]
+        rgb = np.stack([s] * 3, -1) * keep + accent * gone * np.maximum(s, 0.28)[..., None]
+
+    return (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
+
+
+def numpy_filter(rgb, mask):
+    """The same mask applied with numpy's FFT instead of ours.
+
+    NOTE: this is the only numpy.fft call in the project, it lives here in the
+    web app rather than in transforms.py, and it exists purely as a check on the
+    hand-written transform. Delete this function and the `library=` argument
+    below if the assignment forbids the import anywhere in the tree.
+    """
+    padded, (h, w) = denoise.pad_to_pow2(rgb)
+    out = np.zeros_like(padded)
+    for c in range(3):
+        spec = np.fft.fftshift(np.fft.fft2(padded[:, :, c]))
+        out[:, :, c] = np.real(np.fft.ifft2(np.fft.ifftshift(spec * mask)))
+    return np.clip(out[:h, :w], 0.0, 1.0)
+
+
+def psnr(a, b):
+    """Peak signal to noise, in dB, for two float images in 0..1."""
+    mse = float(np.mean((a - b) ** 2))
+    if mse <= 0:
+        return None
+    return "{:.1f}".format(10.0 * np.log10(1.0 / mse))
 
 
 @app.route("/")
@@ -180,13 +303,23 @@ def blur():
 
     blurred = np.clip(blurred, 0, 255).astype(np.uint8)
 
+    # the same operation from a library, as a check on the loop above
+    start = time.time()
+    library = library_blur(img, ksize)
+    elapsed_lib = time.time() - start
+
     return render_template(
         "index.html",
         original=to_data_uri(original),
         blurred=to_data_uri(blurred),
+        library=to_data_uri(library),
+        lib_call="ImageFilter.BoxBlur({:g})".format((ksize - 1) / 2),
+        stats=compare(blurred, library),   # same operation, so the numbers mean something
         ksize=ksize,
         size="{} x {}".format(original.shape[1], original.shape[0]),
         elapsed="{:.2f}".format(elapsed),
+        elapsed_lib="{:.4f}".format(elapsed_lib),
+        speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
     )
 
 
@@ -218,14 +351,23 @@ def sharpen():
 
     sharpened = np.clip(sharpened * 255.0, 0, 255).astype(np.uint8)
 
+    start = time.time()
+    library, lib_call = library_sharpen(img, cutoff, amount)
+    elapsed_lib = time.time() - start
+
     return render_template(
         "index.html",
         original=to_data_uri(original),
         sharpened=to_data_uri(sharpened),
+        library=to_data_uri(library),
+        lib_call=lib_call,
+        different_method=True,            # no numbers: it is not the same algorithm
         cutoff="{:g}".format(cutoff),
         amount="{:g}".format(amount),
         size="{} x {}".format(original.shape[1], original.shape[0]),
         elapsed="{:.2f}".format(elapsed),
+        elapsed_lib="{:.4f}".format(elapsed_lib),
+        speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
     )
 
 
@@ -251,13 +393,99 @@ def edges():
 
     detected = np.clip(detected * 255.0, 0, 255).astype(np.uint8)
 
+    start = time.time()
+    library = library_edges(img)
+    elapsed_lib = time.time() - start
+
     return render_template(
         "index.html",
         original=to_data_uri(original),
         edges=to_data_uri(detected),
+        library=to_data_uri(library),
+        lib_call="ImageFilter.FIND_EDGES",
+        different_method=True,
         edge_cutoff="{:g}".format(cutoff),
         size="{} x {}".format(original.shape[1], original.shape[0]),
         elapsed="{:.2f}".format(elapsed),
+        elapsed_lib="{:.4f}".format(elapsed_lib),
+        speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
+    )
+
+
+@app.route("/denoise", methods=["POST"])
+def denoise_view():
+    file = request.files.get("image")
+    if file is None or file.filename == "":
+        return render_template("index.html", error="Please choose an image file.")
+
+    kind = request.form.get("noise", "periodic")
+    amount = float(request.form.get("noise_amount", 0.3))
+    which = request.form.get("filter", "notch")
+    cutoff = float(request.form.get("fcut", 45))
+    width = float(request.form.get("nwidth", 3))
+    softness = float(request.form.get("softness", 20))
+    view = request.form.get("specview", "mask")
+
+    try:
+        img = Image.open(file.stream).convert("RGB")
+    except Exception:
+        return render_template("index.html", error="That file could not be read as an image.")
+
+    img.thumbnail((denoise.WORK_DIM, denoise.WORK_DIM))
+    original = np.asarray(img, dtype=np.uint8)
+    clean = original.astype(np.float64) / 255.0
+
+    noisy = denoise.add_noise(clean, kind, amount, seed=0)
+
+    # the spectrum is taken of the luminance: one picture to look at, and one
+    # place to hunt for peaks, while the mask itself is applied to all three
+    # colour channels
+    padded, _ = denoise.pad_to_pow2(noisy)
+    start = time.time()
+    mag = np.abs(denoise.shift(denoise.fft2(denoise.luma(padded))))
+
+    peaks = []
+    if which == "notch":
+        mask, peaks = denoise.mask_notch(mag, max(8.0, width * 2), width, softness)
+    elif which == "gaussian":
+        mask = denoise.mask_gaussian(mag.shape[0], mag.shape[1], cutoff, softness)
+    else:
+        mask = denoise.mask_ideal(mag.shape[0], mag.shape[1], cutoff)
+
+    cleaned = denoise.filter_channels(noisy, mask)
+    elapsed = time.time() - start
+
+    start = time.time()
+    library = numpy_filter(noisy, mask)
+    elapsed_lib = time.time() - start
+
+    kept = "{:.1f}".format(100.0 * float(np.mean(mask)))
+
+    return render_template(
+        "index.html",
+        original=to_data_uri(original),
+        noisy=to_data_uri((noisy * 255).astype(np.uint8)),
+        spectrum=to_data_uri(spectrum_plate(mag, mask, view)),
+        denoised=to_data_uri((cleaned * 255).astype(np.uint8)),
+        library=to_data_uri((library * 255).astype(np.uint8)),
+        lib_call="numpy.fft.fft2 / ifft2",
+        stats=compare((cleaned * 255).astype(np.uint8), (library * 255).astype(np.uint8)),
+        noise=kind,
+        noise_amount="{:g}".format(amount),
+        filt=which,
+        fcut="{:g}".format(cutoff),
+        nwidth="{:g}".format(width),
+        softness="{:g}".format(softness),
+        specview=view,
+        peaks=len(peaks),
+        kept=kept,
+        psnr_noisy=psnr(clean, noisy),
+        psnr_clean=psnr(clean, cleaned),
+        size="{} x {}".format(original.shape[1], original.shape[0]),
+        spec_size="{} x {}".format(mag.shape[1], mag.shape[0]),
+        elapsed="{:.2f}".format(elapsed),
+        elapsed_lib="{:.4f}".format(elapsed_lib),
+        speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
     )
 
 
