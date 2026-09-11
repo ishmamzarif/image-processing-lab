@@ -179,6 +179,23 @@
             color: var(--faint);
         }
 
+        /* sits on the Source label row, so it borrows the label's type */
+        .file__reset {
+            padding: 0;
+            background: none;
+            border: 0;
+            font: inherit;
+            letter-spacing: inherit;
+            text-transform: inherit;
+            color: var(--muted);
+            cursor: pointer;
+        }
+
+        .file__reset:hover,
+        .file__reset:focus-visible {
+            color: var(--ink);
+        }
+
         /* ---------- operation selector ---------- */
 
         .ops {
@@ -253,7 +270,8 @@
         .rail:has(#op-denoise:checked) .f-namt,
         .rail:has(#op-denoise:checked) .f-filt,
         .rail:has(#op-denoise:checked) .f-soft,
-        .rail:has(#op-denoise:checked) .f-view {
+        .rail:has(#op-denoise:checked) .f-view,
+        .rail:has(#op-compress:checked) .f-keep {
             display: block;
         }
 
@@ -400,7 +418,8 @@
         .rail:has(#op-blur:checked) .run-blur,
         .rail:has(#op-sharpen:checked) .run-sharpen,
         .rail:has(#op-edges:checked) .run-edges,
-        .rail:has(#op-denoise:checked) .run-denoise {
+        .rail:has(#op-denoise:checked) .run-denoise,
+        .rail:has(#op-compress:checked) .run-compress {
             display: block;
         }
 
@@ -652,6 +671,54 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* ---------- compression stats ---------- */
+
+        /* the same measure as the notes, so the table lines up under them. It
+           can be wider than a phone, hence its own scroller. */
+        .stats-wrap {
+            max-width: 640px;
+            margin: 22px auto 0;
+            overflow-x: auto;
+        }
+
+        .stats {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: var(--t-small);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stats th,
+        .stats td {
+            padding: 9px 14px;
+            border-bottom: 1px solid var(--line);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .stats thead th {
+            font-size: var(--t-micro);
+            font-weight: 600;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .stats tbody th {
+            text-align: left;
+            font-weight: 500;
+            color: var(--muted);
+        }
+
+        .stats td {
+            color: var(--ink);
+        }
+
+        /* our column, the one the page is about */
+        .stats .ours {
+            font-weight: 600;
+        }
+
         /* ---------- method panel ---------- */
 
         .recipe {
@@ -674,6 +741,33 @@
             }
         }
 
+        /* sits in the section's header band, so it borrows that row's type */
+        .recipe__toggle {
+            padding: 5px 11px;
+            background: var(--bg);
+            border: 1px solid var(--line-2);
+            border-radius: var(--radius);
+            font: inherit;
+            font-size: var(--t-small);
+            font-weight: 600;
+            letter-spacing: inherit;
+            text-transform: inherit;
+            color: var(--ink);
+            cursor: pointer;
+            transition: border-color 90ms ease-out, background 90ms ease-out, color 90ms ease-out;
+        }
+
+        .recipe__toggle:hover,
+        .recipe__toggle:focus-visible {
+            border-color: var(--ink);
+        }
+
+        .recipe__toggle[aria-expanded="true"] {
+            background: var(--ink);
+            border-color: var(--ink);
+            color: var(--bg);
+        }
+
         .recipe__h {
             margin: 0 0 12px;
             font-size: var(--t-micro);
@@ -683,19 +777,58 @@
             color: var(--muted);
         }
 
-        /* the call tree: monospace so the box-drawing lines stay aligned */
-        .flow {
+        /* Code blocks: the call tree, and the line of source behind each
+           equation. The language tag sits in the corner rather than on a header
+           strip, so a one-line block stays close to one line tall. */
+        .code {
+            position: relative;
             margin: 0;
-            padding: 16px 18px;
+            padding: 24px 16px 12px;
             overflow-x: auto;
-            background: var(--bg);
+            background: color-mix(in srgb, var(--ink) 3%, var(--bg));
             border: 1px solid var(--line);
             border-radius: var(--radius);
             font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
             font-size: 12.5px;
             line-height: 1.65;
-            color: var(--muted);
+            color: var(--ink);
             white-space: pre;
+            tab-size: 4;
+        }
+
+        .code[data-lang]::before {
+            content: attr(data-lang);
+            position: absolute;
+            top: 6px;
+            right: 10px;
+            font-family: var(--font);
+            font-size: 10.5px;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--faint);
+        }
+
+        /* Restrained highlighting, since the rest of the UI is black and white
+           with one accent: keywords bold, literals in the accent, comments
+           faint. The spans come from the small highlighter at the bottom. */
+        .tok-k {
+            font-weight: 600;
+        }
+
+        .tok-n,
+        .tok-s {
+            color: var(--accent);
+        }
+
+        .tok-c {
+            color: var(--faint);
+        }
+
+        /* the call tree is mostly scaffolding, so it sits back and lets the
+           function names (<b>) carry it. monospace keeps the box-drawing lines
+           aligned. */
+        .flow {
+            color: var(--muted);
         }
 
         .flow b {
@@ -711,8 +844,47 @@
         .eq {
             display: flex;
             gap: 12px;
-            padding: 11px 0;
+            padding: 16px 0;
             border-top: 1px solid var(--line);
+        }
+
+        /* min-width 0 so a long code line scrolls inside its block instead of
+           pushing the whole column wider */
+        .eq__body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* The maths, typeset by KaTeX from the TeX written inside. KaTeX comes
+           from a CDN, so offline it never arrives, and then the TeX source is
+           left on screen in monospace, which still reads. */
+        .tex {
+            margin-bottom: 10px;
+            padding: 2px 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--ink);
+        }
+
+        .tex.is-typeset {
+            font-family: inherit;
+            font-size: inherit;
+        }
+
+        .tex .katex-display {
+            margin: 0;
+        }
+
+        /* fleqn indents by 2em; flush left lines the maths up with its code */
+        .tex .katex-display.fleqn > .katex {
+            padding-left: 0;
+        }
+
+        .tex .katex {
+            font-size: 1.12em;
         }
 
         .eq:first-of-type {
@@ -731,7 +903,10 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .eq code {
+        /* the older one-line form. Scoped to a direct child so it no longer
+           catches inline <code> in the notes, which it used to force onto a
+           line of its own. */
+        .eq > div > code {
             display: block;
             font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
             font-size: 13px;
@@ -1005,11 +1180,11 @@
 <body>
 
     {# --- which operation produced this response, so the rail can restore itself --- #}
-    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'blur' %}
+    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'compress' if compressed else 'blur' %}
     {% set ks = ksize | string if ksize else '5' %}
     {% set cut = cutoff or edge_cutoff or '15' %}
     {% set amt = amount or '1' %}
-    {% set result = blurred or sharpened or edges or denoised %}
+    {% set result = blurred or sharpened or edges or denoised or compressed %}
 
     <div class="app">
 
@@ -1020,13 +1195,13 @@
             </div>
 
             <div class="sect file">
-                <span class="label">Source</span>
+                <span class="label">Source <button type="button" class="file__reset" id="image-reset" hidden>Reset</button></span>
                 <input type="file" id="image" name="image" accept="image/*" required>
                 <label class="file__btn" for="image">
                     <span class="file__name" id="filename">No file chosen</span>
                     <span class="file__plus">+</span>
                 </label>
-                <p class="file__hint">{{ MAX_DIM | default(500) }} px max &middot; re-select each run</p>
+                <p class="file__hint">{{ MAX_DIM | default(500) }} px max &middot; kept between runs</p>
             </div>
 
             <div class="ops">
@@ -1061,6 +1236,14 @@
                     <label class="op__row" for="op-denoise">
                         <span class="op__name">Denoise</span>
                         <span class="op__note">fft notch</span>
+                    </label>
+                </div>
+
+                <div class="op">
+                    <input type="radio" name="op" id="op-compress" value="compress" {% if active=='compress' %}checked{% endif %}>
+                    <label class="op__row" for="op-compress">
+                        <span class="op__name">Compress</span>
+                        <span class="op__note">fft top-k</span>
                     </label>
                 </div>
             </div>
@@ -1184,6 +1367,18 @@
                         along strong edges.
                     </p>
                 </div>
+
+                <div class="field f-keep">
+                    <label class="label" for="keep">Coefficients kept <b class="val" id="v-keep" aria-hidden="true"></b></label>
+                    <input type="range" name="keep" id="keep"
+                           min="0.5" max="20" step="0.5" value="{{ keep or '5' }}">
+                    <p class="hint">
+                        The share of the spectrum that survives, chosen by magnitude; the rest
+                        is set to zero. Each kept coefficient costs about 7 bytes against 3 per
+                        raw pixel, so 5% is roughly 8.6&times; smaller and 1% about 43&times;.
+                        Fine texture goes first, and at the lowest settings edges start to ring.
+                    </p>
+                </div>
             </div>
 
             <div class="run">
@@ -1191,6 +1386,7 @@
                 <button type="submit" class="run-sharpen" formaction="/sharpen">Apply sharpen</button>
                 <button type="submit" class="run-edges" formaction="/edges">Detect edges</button>
                 <button type="submit" class="run-denoise" formaction="/denoise">Denoise</button>
+                <button type="submit" class="run-compress" formaction="/compress">Compress</button>
             </div>
 
         </form>
@@ -1431,6 +1627,130 @@
                 </p>
                 {% endif %}
             </section>
+            {% elif compressed %}
+            <section id="result">
+                <div class="meta">
+                    <b>Compress</b>
+                    <i>&middot;</i> fft top-k, {{ kept }}% of the spectrum kept
+                    <i>&middot;</i> {{ bytes_ours }}, {{ ratio }}&times; smaller
+                    <i>&middot;</i> {{ size | replace(' x ', ' × ') }}
+                    <i>&middot;</i> <u>{{ elapsed }} s</u>
+                </div>
+
+                <div class="pair">
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Original</span>
+                            <span class="conv__sub">{{ bytes_raw }}</span>
+                        </div>
+                        <div class="plate__well" data-cap="Original">
+                            <img src="{{ original }}" alt="Original image">
+                        </div>
+                    </div>
+
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Decompressed</span>
+                            <span class="conv__sub">{{ bytes_ours }}{% if psnr_ours %} &middot; {{ psnr_ours }} dB{% endif %}</span>
+                            <a class="save" href="{{ compressed }}" download="compressed-k{{ keep }}.png">Save png</a>
+                        </div>
+                        <div class="plate__well" data-cap="Decompressed">
+                            <img src="{{ compressed }}" alt="Image after compression and decompression">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pair">
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Spectrum</span>
+                            <span class="conv__sub">log |X| of luma, centred &middot; {{ spec_size }}</span>
+                        </div>
+                        <div class="plate__well" data-cap="Spectrum — {{ spec_size }}">
+                            <img src="{{ spectrum }}" alt="Luma spectrum, with the discarded coefficients tinted">
+                        </div>
+                    </div>
+                </div>
+
+                <p class="cmp__note">
+                    Grey is what was kept, blue what was thrown away: {{ stored }} coefficient
+                    pairs survive, and they crowd the centre, because that is where a photo
+                    keeps its energy. Encoding took {{ elapsed_enc }} s and decoding
+                    {{ elapsed_dec }} s, both on the hand-written FFT.
+                </p>
+
+                {% if library %}
+                {# --- JPEG at about the same size. A different method, so it is
+                       compared by size and error, not pixel for pixel. --- #}
+                <div class="meta cmp__head">
+                    <b>Library</b>
+                    <i>&middot;</i> Pillow JPEG, quality {{ jpeg_q }}
+                    <i>&middot;</i> {{ bytes_lib }}
+                    <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+                </div>
+
+                <div class="pair">
+                    <div class="plate">
+                        <div class="plate__bar">
+                            <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                            <a class="save" href="{{ library }}" download="compressed-jpeg-q{{ jpeg_q }}.png">Save png</a>
+                        </div>
+                        <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                            <img src="{{ library }}" alt="The same image saved as JPEG">
+                        </div>
+                    </div>
+                </div>
+
+                <p class="cmp__note">
+                    {% if jpeg_fit == 'ceiling' %}
+                    At this setting our file outgrows anything JPEG will make: even at quality
+                    100 it comes to {{ bytes_lib }} against our {{ bytes_ours }}, and it is still
+                    the closer picture. So these two are not at equal size, and JPEG is ahead
+                    on both counts.
+                    {% elif jpeg_fit == 'floor' %}
+                    Even at quality 1 JPEG needs {{ bytes_lib }}, more than our {{ bytes_ours }}.
+                    Part of that is its headers and tables, about 600 bytes, which our
+                    payload-only figure does not carry, so these two are not at equal size.
+                    {% else %}
+                    Not the same algorithm: JPEG transforms 8&times;8 blocks with a cosine
+                    transform, quantises each coefficient coarsely and entropy-codes the
+                    result. Its quality was searched until the file came out about the same
+                    size as ours, so the error figures below compare like with like &mdash;
+                    and the gap is what quantisation and entropy coding buy.
+                    {% endif %}
+                </p>
+                {% endif %}
+
+                {# --- the numbers side by side, at the bottom of the result --- #}
+                <div class="meta cmp__head">
+                    <b>Stats</b> <i>&middot;</i> size, loss and quality
+                </div>
+
+                <div class="stats-wrap">
+                    <table class="stats">
+                        <thead>
+                            <tr><th></th><th>Original</th><th>FFT top-k</th><th>JPEG q{{ jpeg_q }}</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><th>Size</th><td>{{ bytes_raw }}</td><td class="ours">{{ bytes_ours }}</td><td>{{ bytes_lib }}</td></tr>
+                            <tr><th>Ratio</th><td>1&times;</td><td class="ours">{{ ratio }}&times;</td><td>{{ ratio_lib }}&times;</td></tr>
+                            <tr><th>Size saved</th><td>&mdash;</td><td class="ours">{{ saved_ours }}%</td><td>{{ saved_lib }}%</td></tr>
+                            <tr><th>Loss</th><td>&mdash;</td><td class="ours">{{ loss_ours }}%</td><td>{{ loss_lib }}%</td></tr>
+                            <tr><th>Quality</th><td>&mdash;</td><td class="ours">{{ quality_ours }}%</td><td>{{ quality_lib }}%</td></tr>
+                            <tr><th>PSNR</th><td>&mdash;</td><td class="ours">{{ psnr_ours or '∞' }} dB</td><td>{{ psnr_lib or '∞' }} dB</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="cmp__note">
+                    Size is raw 8-bit RGB for the original, the stored positions and values for
+                    ours, and the whole file for JPEG. Loss is the average error of a channel
+                    value as a share of the full 0&ndash;255 range, and quality is 100 minus
+                    that. It reads gently &mdash; a few percent can already be visible ringing
+                    &mdash; so PSNR is given too: the same error on a log scale, where every
+                    6&nbsp;dB is roughly half the error.
+                </p>
+            </section>
             {% else %}
             <section id="result">
                 <div class="meta">
@@ -1524,14 +1844,17 @@
 
             {# ================= how the result was produced ================= #}
             <section class="recipe">
-                <div class="meta"><b>Method</b> <i>&middot;</i> call flow and equations</div>
+                <div class="meta"><b>Method</b> <i>&middot;</i> call flow and equations
+                    <button type="button" class="recipe__toggle" id="recipe-toggle"
+                            aria-expanded="false" aria-controls="recipe-body">Show</button></div>
 
-                <div class="recipe__grid">
+                {# hidden until the script below reads the remembered choice #}
+                <div class="recipe__grid" id="recipe-body" hidden>
                     <div class="recipe__col">
                         <h4 class="recipe__h">Flow</h4>
 
 {% if blurred %}
-<pre class="flow">blur()                                <i>app2.py</i>
+<pre class="code flow" data-lang="python">blur()                                <i>app2.py</i>
  ├─ Image.open(file).convert("RGB")
  ├─ img.thumbnail((500, 500))
  ├─ <b>box_kernel</b>(k)                   ①
@@ -1542,7 +1865,7 @@
          └─ four nested loops       ④
  → np.clip(…).astype(np.uint8)      ⑤</pre>
 {% elif sharpened %}
-<pre class="flow">sharpen()                             <i>app2.py</i>
+<pre class="code flow" data-lang="python">sharpen()                             <i>app2.py</i>
  └─ for c in (R, G, B):
      ├─ <b>high_pass_detail</b>(channel, D₀)
      │   ├─ <b>spatial_axes</b>(H, W)     ①
@@ -1552,7 +1875,7 @@
      │   └─ <b>reconstruct</b>(…)         ⑤
      └─ source + amount · detail   ⑥</pre>
 {% elif edges %}
-<pre class="flow">edges()                               <i>app2.py</i>
+<pre class="code flow" data-lang="python">edges()                               <i>app2.py</i>
  ├─ <b>to_grayscale</b>(rgb)        ①
  └─ <b>edge_map</b>(gray, D₀)
      ├─ <b>high_pass_detail</b>(…)  ②
@@ -1562,8 +1885,24 @@
      │   └─ <b>reconstruct</b>(…)   ⑤
      ├─ np.abs(…) / peak     ⑥
      └─ 1 − edges            ⑦</pre>
+{% elif compressed %}
+<pre class="code flow" data-lang="python">compress_view()                       <i>app2.py</i>
+ ├─ img.thumbnail((256, 256))
+ ├─ <b>encode</b>(clean, keep)               <i>compress.py</i>
+ │   ├─ <b>pad_to_pow2</b>(rgb)          ①
+ │   ├─ <b>fft2</b>(channel) × 3         ②  <i>denoise.py</i>
+ │   ├─ luma = Σ w·X_c            ③
+ │   ├─ np.argpartition(…)        ④
+ │   ├─ chosen |= chosen[partner] ⑤
+ │   └─ X / MN → float16          ⑥
+ ├─ <b>decode</b>(packed)
+ │   ├─ scatter X, conj(X)        ⑦
+ │   └─ <b>ifft2</b> → real → crop       ⑧
+ ├─ <b>packed_bytes</b>(packed)          ⑨
+ ├─ <b>pixel_loss</b> / <b>psnr</b>             ⑩
+ └─ <b>library_jpeg</b>(img, bytes)          <i>baseline</i></pre>
 {% else %}
-<pre class="flow">denoise_view()                        <i>app2.py</i>
+<pre class="code flow" data-lang="python">denoise_view()                        <i>app2.py</i>
  ├─ img.thumbnail((256, 256))
  ├─ <b>add_noise</b>(clean, kind, amt)   ①  <i>denoise.py</i>
  ├─ <b>pad_to_pow2</b>(noisy)            ②
@@ -1586,21 +1925,37 @@
                         <h4 class="recipe__h">Equations</h4>
 
 {% if blurred %}
-                        <div class="eq"><span class="eq__n">①</span><div>
-                            <code>K[i,j] = 1 / k²</code>
+                        {# each step: the maths as TeX (typeset by KaTeX), then the
+                           line of source that computes it, then a note. The code
+                           blocks sit at column 0 because <pre> keeps indentation. #}
+                        <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+                            <div class="tex">K[i,j] = \frac{1}{k^2}</div>
+<pre class="code" data-lang="python">def box_kernel(size):
+    return np.ones((size, size), dtype=np.float64) / (size * size)</pre>
                             <em>Box kernel. Every weight equal, and summing to 1 so the average brightness is unchanged.</em></div></div>
-                        <div class="eq"><span class="eq__n">②</span><div>
-                            <code>K̃[i,j] = K[k−1−i, k−1−j]</code>
+                        <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+                            <div class="tex">\tilde{K}[i,j] = K[\,k-1-i,\ k-1-j\,]</div>
+<pre class="code" data-lang="python">kernel = kernel[::-1, ::-1]</pre>
                             <em>The flip is what makes this convolution rather than correlation. A box kernel is symmetric, so here it changes nothing.</em></div></div>
-                        <div class="eq"><span class="eq__n">③</span><div>
-                            <code>pad[y,x] = src[clamp(y−p, 0, H−1), clamp(x−p, 0, W−1)],&nbsp;&nbsp; p = ⌊k/2⌋</code>
+                        <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+                            <div class="tex">\begin{aligned} \mathrm{pad}[y,x] &amp;= \mathrm{src}\big[\operatorname{clamp}(y-p,\,0,\,H-1),\ \operatorname{clamp}(x-p,\,0,\,W-1)\big] \\ p &amp;= \lfloor k/2 \rfloor \end{aligned}</div>
+<pre class="code" data-lang="python">p_height, p_width = k_height // 2, k_width // 2
+padded = np.pad(channel, ((p_height, p_height), (p_width, p_width)), mode="edge")</pre>
                             <em>Replicating the border keeps the output the same size as the input.</em></div></div>
-                        <div class="eq"><span class="eq__n">④</span><div>
-                            <code>out[y,x] = <span class="sum">Σ</span><sub>ky=0</sub><sup>k−1</sup> <span class="sum">Σ</span><sub>kx=0</sub><sup>k−1</sup> pad[y+ky, x+kx] · K̃[ky,kx]</code>
+                        <div class="eq"><span class="eq__n">④</span><div class="eq__body">
+                            <div class="tex">\mathrm{out}[y,x] = \sum_{k_y=0}^{k-1} \sum_{k_x=0}^{k-1} \mathrm{pad}[y+k_y,\ x+k_x] \cdot \tilde{K}[k_y,k_x]</div>
+<pre class="code" data-lang="python">for y in range(h):
+    for x in range(w):
+        total = 0.0
+        for ky in range(k_height):
+            for kx in range(k_width):
+                total += padded[y + ky, x + kx] * kernel[ky, kx]
+        out[y, x] = total</pre>
                             <em>One multiply-accumulate per kernel cell, per output pixel, per channel. Cost is O(H·W·k²) — which is why the times climb with k.</em></div></div>
-                        <div class="eq"><span class="eq__n">⑤</span><div>
-                            <code>clip(·, 0, 255) → uint8</code>
-                            <em><code>astype</code> truncates rather than rounds, which is the whole of the difference from Pillow.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑤</span><div class="eq__body">
+                            <div class="tex">g[y,x] = \big\lfloor \operatorname{clip}(\mathrm{out}[y,x],\ 0,\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">blurred = np.clip(blurred, 0, 255).astype(np.uint8)</pre>
+                            <em>The floor is <code>astype</code>, which truncates rather than rounds. That is the whole of the difference from Pillow.</em></div></div>
 {% elif sharpened or edges %}
 {% if edges %}
                         <div class="eq"><span class="eq__n">①</span><div>
@@ -1631,6 +1986,54 @@
                             <code>g(x,y) = f(x,y) + amount · detail(x,y)</code>
                             <em>The detail is added back on top. Past about 2 it overshoots and haloes appear along strong edges. A Gaussian of spatial width r matches a frequency width N/(2πr), which is how the Pillow radius below is derived rather than guessed.</em></div></div>
 {% endif %}
+{% elif compressed %}
+                        <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+                            <div class="tex">M = 2^{\lceil \log_2 H \rceil}, \qquad N = 2^{\lceil \log_2 W \rceil}</div>
+<pre class="code" data-lang="python">padded, (h, w) = denoise.pad_to_pow2(rgb)</pre>
+                            <em>Radix-2 needs power-of-two sides. The padding is a reflection, as in Denoise, so the border adds no hard step whose broadband spectrum would compete for the kept slots. It is not free here: the kept share is of the padded spectrum, so a 256×170 image loses 170/256 of its ratio.</em></div></div>
+                        <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+                            <div class="tex">X_c[u,v] = \sum_{m=0}^{M-1} \sum_{n=0}^{N-1} x_c[m,n]\; e^{-2\pi i\,(um/M \,+\, vn/N)}, \qquad c \in \{R, G, B\}</div>
+<pre class="code" data-lang="python">spectra = [denoise.fft2(padded[:, :, c]) for c in range(3)]</pre>
+                            <em>One 2D transform per channel, each the hand-written radix-2 FFT run along every row and then every column.</em></div></div>
+                        <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+                            <div class="tex">X_Y = 0.299\,X_R + 0.587\,X_G + 0.114\,X_B</div>
+<pre class="code" data-lang="python">luma = spectra[0] * 0.299 + spectra[1] * 0.587 + spectra[2] * 0.114</pre>
+                            <em>The transform is linear, so the spectrum of the luma is the same weighted sum of the channel spectra, and no fourth transform is needed. One set of positions chosen on it serves all three channels, so each position is stored once.</em></div></div>
+                        <div class="eq"><span class="eq__n">④</span><div class="eq__body">
+                            <div class="tex">S = \operatorname{top}_K \big|X_Y[u,v]\big|, \qquad K = \operatorname{round}(\mathrm{keep} \cdot MN)</div>
+<pre class="code" data-lang="python">count = int(np.clip(round(keep * size), 1, size))
+top = np.argpartition(mag.ravel(), -count)[-count:]</pre>
+                            <em>A partial sort: it finds the K largest without ordering them, which is all that is needed.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑤</span><div class="eq__body">
+                            <div class="tex">X_c[-u \bmod M,\ -v \bmod N] = \overline{X_c[u,v]}</div>
+<pre class="code" data-lang="python">chosen |= chosen[partner]
+idx = np.flatnonzero(chosen &amp; (np.arange(size) &lt;= partner))</pre>
+                            <em>A real image has a conjugate-symmetric spectrum, so the two bins of a pair carry the same information. The kept set is closed under pairing, and then only the member with the smaller index is stored: half the storage, for nothing.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑥</span><div class="eq__body">
+                            <div class="tex">\hat{X}_c[s] = \operatorname{fp16}\!\left( \frac{X_c[s]}{MN} \right), \qquad s \in S_{\text{half}}</div>
+<pre class="code" data-lang="python">kept = spectra[c].ravel()[idx] / size
+values[c, :, 0] = kept.real
+values[c, :, 1] = kept.imag</pre>
+                            <em>float16 is where most of the bytes are saved. The division matters: unscaled, the DC bin of a white 256×256 channel is 65536, past float16's largest value of 65504.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑦</span><div class="eq__body">
+                            <div class="tex">\tilde{X}_c[u,v] = \begin{cases} MN\,\hat{X}_c[u,v] &amp; (u,v) \in S \\ 0 &amp; \text{otherwise} \end{cases}</div>
+<pre class="code" data-lang="python">flat[partner] = np.conj(kept)
+flat[idx] = kept</pre>
+                            <em>Decoding puts each stored value back, writes its conjugate at the partner position, and leaves everything else zero.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑧</span><div class="eq__body">
+                            <div class="tex">\tilde{x}_c[m,n] = \frac{1}{MN} \sum_{u=0}^{M-1} \sum_{v=0}^{N-1} \tilde{X}_c[u,v]\; e^{+2\pi i\,(um/M \,+\, vn/N)}</div>
+<pre class="code" data-lang="python">out[:, :, c] = np.real(denoise.ifft2(flat.reshape(m, n)))[:h, :w]</pre>
+                            <em>With both halves of every pair restored, the result is real up to round-off (about 10⁻¹⁶ of the signal), so taking the real part loses nothing. Then it is cropped back to the original size.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑨</span><div class="eq__body">
+                            <div class="tex">\text{bytes} = |S_{\text{half}}| \cdot \big(\underbrace{2}_{\text{position}} + \underbrace{3 \cdot 2 \cdot 2}_{\text{RGB} \,\times\, \text{re, im}}\big), \qquad \text{ratio} = \frac{3HW}{\text{bytes}} \approx \frac{3}{7\,\mathrm{keep}}</div>
+<pre class="code" data-lang="python">return int(packed["idx"].nbytes + packed["values"].nbytes)</pre>
+                            <em>14 bytes per stored pair, about 7 per kept bin, against 3 per raw pixel. So 5% kept is about 8.6× smaller, and the codec breaks even near 43%.</em></div></div>
+                        <div class="eq"><span class="eq__n">⑩</span><div class="eq__body">
+                            <div class="tex">\begin{aligned} \text{loss} &amp;= \frac{100}{255} \cdot \operatorname{mean} \big| x - \tilde{x} \big| \ \%, \qquad \text{quality} = 100 - \text{loss} \\ \mathrm{PSNR} &amp;= 10 \log_{10} \frac{1}{\mathrm{MSE}}, \qquad \mathrm{MSE} = \operatorname{mean}\,(x - \tilde{x})^2 \end{aligned}</div>
+<pre class="code" data-lang="python">def pixel_loss(a, b):
+    diff = np.abs(a.astype(np.int16) - b.astype(np.int16))
+    return 100.0 * float(np.mean(diff)) / 255.0</pre>
+                            <em>Both are measured on the 8-bit images shown, for ours and JPEG alike, and they fill the stats table at the end of the result.</em></div></div>
 {% else %}
                         <div class="eq"><span class="eq__n">①</span><div>
                             <code>n(x,y) = A · sin( 2π( f<sub>x</sub>·x/W + f<sub>y</sub>·y/H ) )&nbsp;&nbsp;<span class="eq__or">and / or</span>&nbsp;&nbsp; 𝒩(0, σ²)</code>
@@ -1673,7 +2076,7 @@
             {% elif not error %}
 
             <div class="empty" id="empty">
-                <p><b>Blur</b> &nbsp;&middot;&nbsp; <b>Sharpen</b> &nbsp;&middot;&nbsp; <b>Edges</b></p>
+                <p><b>Blur</b> &nbsp;&middot;&nbsp; <b>Sharpen</b> &nbsp;&middot;&nbsp; <b>Edges</b> &nbsp;&middot;&nbsp; <b>Denoise</b> &nbsp;&middot;&nbsp; <b>Compress</b></p>
                 <p>Choose an image and run an operation</p>
             </div>
 
@@ -1714,6 +2117,7 @@
             readout('nwidth', function (v) { return v + ' px'; });
             readout('fcut', function (v) { return v + ' px'; });
             readout('softness', function (v) { return v; });
+            readout('keep', function (v) { return v + '%'; });
 
             // CSS cannot see a select's value, so it is mirrored onto the form
             // and the notch / low-pass controls key off that
@@ -1721,11 +2125,18 @@
             function syncFilter() { form.dataset.filter = filterSel.value; }
 
             // 1. name the chosen file, and show it in the canvas straight away.
-            //    any result on screen was computed from a previous pick, so it goes.
+            //    any result on screen was computed from a previous pick, so it goes
+            //    -- unless this is the kept file being put back after a run, when
+            //    the result on screen is the one it just produced.
+            var clearBtn = document.getElementById('image-reset');
+            var restoring = false;
+
             input.addEventListener('change', function () {
                 var f = input.files[0];
                 name.textContent = f ? f.name : 'No file chosen';
                 name.classList.toggle('is-set', !!f);
+                clearBtn.hidden = !f;
+                if (!restoring) keep(f);
 
                 if (objectUrl) URL.revokeObjectURL(objectUrl);
 
@@ -1734,6 +2145,8 @@
                     if (empty) empty.hidden = false;
                     return;
                 }
+
+                if (restoring && result) return;
 
                 objectUrl = URL.createObjectURL(f);
                 previewImg.src = objectUrl;
@@ -1747,6 +2160,51 @@
                 preview.hidden = false;
                 if (result) result.hidden = true;
                 if (empty) empty.hidden = true;
+            });
+
+            // Every run reloads the page, and a file input always comes back
+            // empty, so the picked file is kept in IndexedDB and put back on load.
+            // localStorage will not do: it holds strings only, and a photo as a
+            // data URI is past its quota. Without IndexedDB, or without
+            // DataTransfer to refill the input, it falls back to picking again.
+            function store(mode, fn) {
+                try {
+                    var open = indexedDB.open('lab', 1);
+                    open.onupgradeneeded = function () { open.result.createObjectStore('source'); };
+                    open.onsuccess = function () {
+                        var tx = open.result.transaction('source', mode);
+                        tx.oncomplete = tx.onabort = function () { open.result.close(); };
+                        fn(tx.objectStore('source'));
+                    };
+                } catch (e) { }
+            }
+
+            function keep(f) {
+                store('readwrite', function (s) { if (f) s.put(f, 'image'); else s.delete('image'); });
+            }
+
+            // after DOMContentLoaded, so that conv-viz.js is listening for the change too
+            document.addEventListener('DOMContentLoaded', function () {
+                store('readonly', function (s) {
+                    var get = s.get('image');
+                    get.onsuccess = function () {
+                        // nothing kept, or the user picked a file while this was loading
+                        if (!get.result || input.files.length) return;
+                        try {
+                            var dt = new DataTransfer();
+                            dt.items.add(get.result);
+                            input.files = dt.files;
+                        } catch (e) { return; }
+                        restoring = true;
+                        input.dispatchEvent(new Event('change'));
+                        restoring = false;
+                    };
+                });
+            });
+
+            clearBtn.addEventListener('click', function () {
+                input.value = '';
+                input.dispatchEvent(new Event('change'));
             });
 
             // 2. hold the button while the server works
@@ -1837,7 +2295,80 @@
                 apply(btn.getAttribute('aria-pressed') !== 'true', true);
             });
         })();
+
+        // The method panel starts collapsed and is remembered the same way. It
+        // only exists on a result page, hence the early return.
+        (function () {
+            var btn = document.getElementById('recipe-toggle');
+            if (!btn) return;
+            var panel = document.getElementById('recipe-body');
+            var KEY = 'recipe';
+
+            function apply(open, save) {
+                panel.hidden = !open;
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                btn.textContent = open ? 'Hide' : 'Show';
+                if (save) { try { localStorage.setItem(KEY, open ? 'on' : 'off'); } catch (e) { } }
+            }
+
+            var saved = 'off';
+            try { saved = localStorage.getItem(KEY) || 'off'; } catch (e) { }
+            apply(saved === 'on', false);
+
+            btn.addEventListener('click', function () { apply(panel.hidden, true); });
+        })();
+
+        // Restrained Python highlighting for the .code blocks. It rewrites text
+        // nodes only, so markup already in a block (the call tree's <b> and <i>)
+        // stays where it is. Identifiers are matched as a whole so the digit in
+        // a name like fft2 is not mistaken for a number.
+        (function () {
+            var KEYWORDS = /^(and|as|break|continue|def|elif|else|for|from|if|import|in|is|lambda|not|or|pass|return|while|with|None|True|False)$/;
+            var TOKEN = /(#[^\n]*)|("[^"\n]*"|'[^'\n]*')|\b(\d+\.?\d*(?:e-?\d+)?)|([A-Za-z_]\w*)/g;
+
+            function paint(node) {
+                var text = node.nodeValue, frag = document.createDocumentFragment();
+                var last = 0, m;
+                TOKEN.lastIndex = 0;
+                while ((m = TOKEN.exec(text))) {
+                    var cls = m[1] ? 'tok-c' : m[2] ? 'tok-s' : m[3] ? 'tok-n'
+                            : KEYWORDS.test(m[4]) ? 'tok-k' : null;
+                    if (!cls) continue;
+                    frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+                    var span = document.createElement('span');
+                    span.className = cls;
+                    span.textContent = m[0];
+                    frag.appendChild(span);
+                    last = TOKEN.lastIndex;
+                }
+                if (!last) return;
+                frag.appendChild(document.createTextNode(text.slice(last)));
+                node.parentNode.replaceChild(frag, node);
+            }
+
+            document.querySelectorAll('.code').forEach(function (block) {
+                var walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT), nodes = [];
+                while (walk.nextNode()) nodes.push(walk.currentNode);
+                nodes.forEach(paint);
+            });
+        })();
+
+        // Typeset the maths once KaTeX (deferred, below) has run. fleqn keeps
+        // each equation flush left, in line with its code block.
+        document.addEventListener('DOMContentLoaded', function () {
+            if (!window.katex) return;
+            document.querySelectorAll('.tex').forEach(function (el) {
+                katex.render(el.textContent, el, { displayMode: true, fleqn: true, throwOnError: false });
+                el.classList.add('is-typeset');
+            });
+        });
     </script>
+    {% if result %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+          integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+            integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='conv-viz.js') }}"></script>
 
 </body>

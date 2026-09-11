@@ -6,6 +6,7 @@ import numpy as np
 from flask import Flask, render_template, request
 from PIL import Image, ImageFilter
 
+import compress
 import denoise
 
 app = Flask(__name__)
@@ -207,6 +208,42 @@ def library_edges(img):
     return 255 - np.asarray(img.convert("L").filter(ImageFilter.FIND_EDGES), dtype=np.uint8)
 
 
+def library_jpeg(img, target_bytes):
+    """Pillow's JPEG, with the quality searched until the file is about as big as ours.
+
+    A different method (8x8 DCT blocks, quantisation, Huffman coding), so the
+    only fair comparison is at equal size: then the PSNR says which kept more
+    of the picture for the same bytes. File size rises with quality closely
+    enough that a binary search finds the nearest within about 7 saves. Note
+    the JPEG figure includes its headers (~600 bytes) and ours is payload only,
+    which matters at the smallest settings, where even quality 1 can be bigger.
+
+    The search runs to 100 rather than Pillow's recommended 95: past 95 JPEG
+    gains little, but our high settings are bigger than a quality-95 file, and
+    stopping there would leave those comparisons at mismatched sizes.
+    """
+    def save(quality):
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        return buf.getvalue()
+
+    lo, hi = 1, 100
+    best = None
+    while lo <= hi:
+        quality = (lo + hi) // 2
+        data = save(quality)
+        if best is None or abs(len(data) - target_bytes) < abs(len(best[1]) - target_bytes):
+            best = (quality, data)
+        if len(data) < target_bytes:
+            lo = quality + 1
+        else:
+            hi = quality - 1
+
+    quality, data = best
+    decoded = np.asarray(Image.open(io.BytesIO(data)).convert("RGB"), dtype=np.uint8)
+    return decoded, len(data), quality
+
+
 def compare(a, b):
     """How far apart two uint8 images are. Only meaningful when the two were
     produced by the same operation, which is true of the blur and nothing else."""
@@ -269,6 +306,21 @@ def psnr(a, b):
     if mse <= 0:
         return None
     return "{:.1f}".format(10.0 * np.log10(1.0 / mse))
+
+
+def kilobytes(n):
+    return "{:.1f} KB".format(n / 1024.0)
+
+
+def pixel_loss(a, b):
+    """Average error of a channel value, as a percentage of the full 0..255 range.
+
+    The "% loss" in the compression stats, with "% quality" as 100 minus it.
+    It reads gently -- a few percent can already be visible ringing -- which is
+    why PSNR is shown beside it.
+    """
+    diff = np.abs(a.astype(np.int16) - b.astype(np.int16))
+    return 100.0 * float(np.mean(diff)) / 255.0
 
 
 @app.route("/")
@@ -484,6 +536,98 @@ def denoise_view():
         size="{} x {}".format(original.shape[1], original.shape[0]),
         spec_size="{} x {}".format(mag.shape[1], mag.shape[0]),
         elapsed="{:.2f}".format(elapsed),
+        elapsed_lib="{:.4f}".format(elapsed_lib),
+        speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
+    )
+
+
+@app.route("/compress", methods=["POST"])
+def compress_view():
+    file = request.files.get("image")
+    if file is None or file.filename == "":
+        return render_template("index.html", error="Please choose an image file.")
+
+    keep = float(request.form.get("keep", 5))
+
+    try:
+        img = Image.open(file.stream).convert("RGB")
+    except Exception:
+        return render_template("index.html", error="That file could not be read as an image.")
+
+    # the same cap as denoise, and for the same reason: the transform is a
+    # Python butterfly loop. It also keeps the padded spectrum within 65536
+    # bins, which is what lets compress.py store positions as uint16.
+    img.thumbnail((denoise.WORK_DIM, denoise.WORK_DIM))
+    original = np.asarray(img, dtype=np.uint8)
+    clean = original.astype(np.float64) / 255.0
+
+    start = time.time()
+    packed, mag = compress.encode(clean, keep / 100.0)
+    elapsed_enc = time.time() - start
+
+    start = time.time()
+    restored = compress.decode(packed)
+    elapsed_dec = time.time() - start
+
+    # rounded to uint8 before measuring, so both PSNR figures are taken on the
+    # 8-bit images actually shown, and neither side gets a precision advantage
+    restored = np.round(restored * 255.0).astype(np.uint8)
+
+    bytes_raw = original.size
+    bytes_ours = compress.packed_bytes(packed)
+    mask = compress.kept_mask(packed)
+
+    start = time.time()
+    library, bytes_lib, jpeg_q = library_jpeg(img, bytes_ours)
+    elapsed_lib = time.time() - start
+
+    elapsed = elapsed_enc + elapsed_dec
+
+    # When the sizes could not be matched, the note has to say so. Past about
+    # 7% kept our file is bigger than anything JPEG produces (quality 100), and
+    # at the very bottom JPEG's smallest file, headers included, can be bigger
+    # than ours.
+    if jpeg_q == 100 and bytes_lib < 0.85 * bytes_ours:
+        jpeg_fit = "ceiling"
+    elif jpeg_q == 1 and bytes_lib > 1.15 * bytes_ours:
+        jpeg_fit = "floor"
+    else:
+        jpeg_fit = None
+
+    loss_ours = pixel_loss(original, restored)
+    loss_lib = pixel_loss(original, library)
+
+    return render_template(
+        "index.html",
+        original=to_data_uri(original),
+        compressed=to_data_uri(restored),
+        spectrum=to_data_uri(spectrum_plate(denoise.shift(mag), denoise.shift(mask), "mask")),
+        library=to_data_uri(library),
+        lib_call="Image.save(format=\"JPEG\", quality={})".format(jpeg_q),
+        different_method=True,            # not the same algorithm: compared by PSNR at equal size
+        keep="{:g}".format(keep),
+        kept="{:.1f}".format(100.0 * float(np.mean(mask))),
+        stored=int(packed["idx"].size),
+        bytes_raw=kilobytes(bytes_raw),
+        bytes_ours=kilobytes(bytes_ours),
+        bytes_lib=kilobytes(bytes_lib),
+        ratio="{:.1f}".format(bytes_raw / bytes_ours),
+        ratio_lib="{:.1f}".format(bytes_raw / bytes_lib),
+        psnr_ours=psnr(clean, restored / 255.0),
+        psnr_lib=psnr(clean, library / 255.0),
+        saved_ours="{:.1f}".format(100.0 * (1.0 - bytes_ours / bytes_raw)),
+        saved_lib="{:.1f}".format(100.0 * (1.0 - bytes_lib / bytes_raw)),
+        loss_ours="{:.2f}".format(loss_ours),
+        loss_lib="{:.2f}".format(loss_lib),
+        quality_ours="{:.2f}".format(100.0 - loss_ours),
+        quality_lib="{:.2f}".format(100.0 - loss_lib),
+        jpeg_q=jpeg_q,
+        jpeg_fit=jpeg_fit,
+        size="{} x {}".format(original.shape[1], original.shape[0]),
+        spec_size="{} x {}".format(mag.shape[1], mag.shape[0]),
+        elapsed="{:.2f}".format(elapsed),
+        elapsed_enc="{:.2f}".format(elapsed_enc),
+        elapsed_dec="{:.2f}".format(elapsed_dec),
         elapsed_lib="{:.4f}".format(elapsed_lib),
         speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
     )
