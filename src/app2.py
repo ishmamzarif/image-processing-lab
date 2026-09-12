@@ -4,7 +4,8 @@ import time
 
 import numpy as np
 from flask import Flask, render_template, request
-from PIL import Image, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter
+from scipy import ndimage   # comparison baselines only, in library_blur
 
 import compress
 import denoise
@@ -25,6 +26,84 @@ app.jinja_env.globals["MAX_DIM"] = MAX_DIM
 def box_kernel(size):
     """returns a kernel of size x size where each cell = 1 / (size ** 2)"""
     return np.ones((size, size), dtype=np.float64) / (size * size)
+
+
+# Every kernel below is copied into conv-viz.js, which has to reproduce the
+# /blur result byte for byte, so each is built from operations JavaScript
+# does identically: no np.round (it rounds halves to even, Math.round rounds
+# them up) and no ndarray.sum on weights that are not whole numbers (numpy
+# sums pairwise, in a different order from a plain loop).
+
+def gaussian_kernel(size):
+    """A sampled Gaussian, normalised to sum to 1.
+
+    sigma = size / 6, so the kernel spans +-3 sigma. Past that the weights are
+    under 1% of the centre, so cutting there costs almost nothing, while a
+    wider sigma in the same box would be chopped off square at the edges. The
+    one size slider therefore sets the strength, just as it does for the box.
+
+    The sum is a plain loop in row order so the browser can match it exactly.
+    The only thing it cannot match is exp itself, which can differ in the last
+    bit between numpy and Math.exp -- enough, very rarely, to move a truncated
+    pixel by one level.
+    """
+    sigma = size / 6.0
+    r = size // 2
+    d = np.arange(size) - r
+    g = np.exp(-(d[:, None] ** 2 + d[None, :] ** 2) / (2.0 * sigma ** 2))
+    total = 0.0
+    for v in g.flat:
+        total += v
+    return g / total
+
+
+def disk_kernel(size):
+    """A flat disc: equal weight on every cell within size // 2 of the centre.
+
+    What an out-of-focus lens does to a point of light, which is why this is
+    the "circular" or lens blur. The test is on whole-number squared distances,
+    so nothing is rounded anywhere. At 3x3 the disc of radius 1 is a plus sign.
+    """
+    r = size // 2
+    d = np.arange(size) - r
+    inside = (d[:, None] ** 2 + d[None, :] ** 2) <= r * r
+    return inside / float(np.count_nonzero(inside))
+
+
+def motion_kernel(size, angle):
+    """A line of equal weights through the centre, `angle` degrees anticlockwise
+    from horizontal: what a camera moving in a straight line during the
+    exposure does to every point.
+
+    `size` points are stepped along the line one cell apart, and each lands on
+    its nearest cell. Rounding is floor(v + 0.5) rather than np.round, and the
+    1e-9 nudge keeps a value that should be exactly half-way (at 60 degrees
+    some are) on the same side in numpy and in the browser, whatever the last
+    bit of cos or sin came out as. The angle is converted as angle * pi / 180
+    for the same reason: that is the order of operations the JS copy uses.
+    """
+    r = size // 2
+    theta = angle * np.pi / 180.0
+    kernel = np.zeros((size, size), dtype=np.float64)
+    for t in range(-r, r + 1):
+        x = int(np.floor(r + t * np.cos(theta) + 0.5 + 1e-9))
+        y = int(np.floor(r - t * np.sin(theta) + 0.5 + 1e-9))   # rows run downwards
+        kernel[y, x] = 1.0
+    return kernel / np.count_nonzero(kernel)
+
+
+# the kinds the blur form offers, and what the page calls each
+KERNELS = {"box": "box", "gaussian": "Gaussian", "disk": "circular", "motion": "motion"}
+
+
+def make_kernel(kind, size, angle=0.0):
+    if kind == "gaussian":
+        return gaussian_kernel(size)
+    if kind == "disk":
+        return disk_kernel(size)
+    if kind == "motion":
+        return motion_kernel(size, angle)
+    return box_kernel(size)
 
 
 def convolve2d(channel, kernel):
@@ -164,15 +243,100 @@ def edge_map(channel, cutoff):
     return 1 - edges
 
 
-def library_blur(img, ksize):
-    """The same box blur, done by Pillow.
+def brighten(channel, gain):
+    """Brightness as a point operation, written out by hand.
 
-    BoxBlur's radius counts pixels either side of the centre, so a k x k kernel
-    is radius (k - 1) / 2. It pads by replicating the border, exactly as
-    convolve2d does, so the two really are the same operation and can be
-    compared number for number.
+    Every output pixel depends on its own input pixel and nothing else, so
+    unlike the blur there is no neighbourhood, no padding and no kernel:
+
+        out[y, x] = gain * in[y, x]
+
+    gain 1 leaves the image alone, 0 is black and 2 doubles every value, with
+    anything past 255 clipped by the caller. It is a gain rather than an
+    offset because that is what Pillow means by brightness (ImageEnhance
+    blends the image with black), so the library version is the same
+    operation and can be compared number for number.
+
+    adjust.js repeats this multiply in the browser on every movement of the
+    slider, so a change here has to be ported there.
     """
-    return np.asarray(img.filter(ImageFilter.BoxBlur((ksize - 1) / 2)), dtype=np.uint8)
+    h, w = channel.shape
+    out = np.zeros((h, w), dtype=np.float64)
+
+    for y in range(h):
+        for x in range(w):
+            out[y, x] = channel[y, x] * gain
+
+    return out
+
+
+def shift_channel(channel, offset):
+    """One colour channel moved up or down by a fixed amount, by hand.
+
+    Another point operation, the same shape of loop as brighten():
+
+        out[y, x] = in[y, x] + offset
+
+    but added rather than multiplied, and with a different offset for each
+    channel. That is the difference that matters: a gain shared by all three
+    keeps the ratios between them, so the hue survives, while unequal offsets
+    change the balance, which is how a colour cast is put in or taken out.
+    Whole numbers in, whole numbers out, so the only thing the caller has to
+    do is clip at both ends.
+
+    adjust.js repeats this addition in the browser, so a change here has to be
+    ported there too.
+    """
+    h, w = channel.shape
+    out = np.zeros((h, w), dtype=np.float64)
+
+    for y in range(h):
+        for x in range(w):
+            out[y, x] = channel[y, x] + offset
+
+    return out
+
+
+def library_blur(img, source, kind, ksize, kernel):
+    """The same blur from a library, as a check on convolve2d.
+
+    Returns the image, the call as the page prints it, and the library's name.
+
+    The box goes to Pillow. BoxBlur's radius counts pixels either side of the
+    centre, so a k x k kernel is radius (k - 1) / 2. It pads by replicating the
+    border, exactly as convolve2d does, so the two really are the same operation
+    and can be compared number for number.
+
+    The rest go to SciPy, because Pillow cannot do them: its general Kernel
+    filter stops at 5x5. The Gaussian uses gaussian_filter, SciPy's own blur,
+    with its radius pinned to k // 2 -- it then builds the same normalised
+    Gaussian we do, only separably, as the product of two 1D ones, which is the
+    same kernel. Circular and motion have no named SciPy function, so they are
+    ndimage.convolve with our kernel. mode="nearest" is edge replication, as in
+    convolve2d, and the float result is truncated to uint8 the same way, so
+    what is left to differ is only the order the sums were done in.
+    """
+    if kind == "box":
+        radius = (ksize - 1) / 2
+        return (
+            np.asarray(img.filter(ImageFilter.BoxBlur(radius)), dtype=np.uint8),
+            "ImageFilter.BoxBlur({:g})".format(radius),
+            "Pillow",
+        )
+
+    out = np.zeros_like(source)
+    if kind == "gaussian":
+        sigma = ksize / 6.0
+        for c in range(3):
+            out[:, :, c] = ndimage.gaussian_filter(source[:, :, c], sigma,
+                                                   mode="nearest", radius=ksize // 2)
+        call = "ndimage.gaussian_filter(sigma={:.3g}, radius={}, mode=\"nearest\")".format(sigma, ksize // 2)
+    else:
+        for c in range(3):
+            out[:, :, c] = ndimage.convolve(source[:, :, c], kernel, mode="nearest")
+        call = "ndimage.convolve(kernel, mode=\"nearest\")"
+
+    return np.clip(out, 0, 255).astype(np.uint8), call, "SciPy"
 
 
 def library_sharpen(img, cutoff, amount):
@@ -206,6 +370,40 @@ def library_edges(img):
     map onto. Inverted to match ours, which draws dark lines on white.
     """
     return 255 - np.asarray(img.convert("L").filter(ImageFilter.FIND_EDGES), dtype=np.uint8)
+
+
+def library_brightness(img, gain):
+    """Pillow's brightness, which is the same operation as brighten().
+
+    ImageEnhance.Brightness blends with an all-black image,
+    black * (1 - g) + img * g, and with black being zero that is g * img. It
+    truncates as well. The one difference is precision: Pillow's C code holds
+    the factor as a 32-bit float, so 0.7 is really 0.69999999 there, and a
+    product that should land exactly on a whole number (10 * 0.7) comes out a
+    hair under it and truncates one level lower. Swept over every value at
+    every slider step, that accounts for every difference.
+    """
+    return (
+        np.asarray(ImageEnhance.Brightness(img).enhance(gain), dtype=np.uint8),
+        "ImageEnhance.Brightness(img).enhance({:g})".format(gain),
+    )
+
+
+def library_channels(img, offsets):
+    """Pillow's version of the channel offsets: Image.point with a lookup table.
+
+    In a point operation the output depends on the input value and nothing
+    else, so each channel has only 256 possible answers. Pillow wants them
+    worked out once, as a table, and then looks every pixel up in it. An RGB
+    image takes its three tables end to end, 768 entries. The table is clipped
+    here as it is built, which makes it the same function as shift_channel
+    followed by np.clip, so the two can be compared number for number, and
+    with no rounding anywhere they should agree exactly.
+    """
+    lut = []
+    for d in offsets:
+        lut += [min(max(v + d, 0), 255) for v in range(256)]
+    return np.asarray(img.point(lut), dtype=np.uint8), "img.point(lut)"
 
 
 def library_jpeg(img, target_bytes):
@@ -246,7 +444,8 @@ def library_jpeg(img, target_bytes):
 
 def compare(a, b):
     """How far apart two uint8 images are. Only meaningful when the two were
-    produced by the same operation, which is true of the blur and nothing else."""
+    produced by the same operation, which is true of the blur and the two
+    point operations (brightness, channels) and nothing else."""
     d = np.abs(a.astype(np.int16) - b.astype(np.int16))
     return {
         "max": int(d.max()),
@@ -312,6 +511,15 @@ def kilobytes(n):
     return "{:.1f} KB".format(n / 1024.0)
 
 
+def signed(n):
+    """An offset as the page shows it: +40, −20 (a true minus sign) or 0."""
+    if n > 0:
+        return "+{}".format(n)
+    if n < 0:
+        return "−{}".format(-n)
+    return "0"
+
+
 def pixel_loss(a, b):
     """Average error of a channel value, as a percentage of the full 0..255 range.
 
@@ -335,6 +543,10 @@ def blur():
         return render_template("index.html", error="Please choose an image file.")
 
     ksize = int(request.form.get("ksize", 5))
+    kind = request.form.get("kernel", "box")
+    if kind not in KERNELS:
+        kind = "box"
+    angle = float(request.form.get("angle", 0))
 
     try:
         img = Image.open(file.stream).convert("RGB")
@@ -344,7 +556,9 @@ def blur():
     img.thumbnail((MAX_DIM, MAX_DIM))
     original = np.asarray(img, dtype=np.uint8)
 
-    kernel = box_kernel(ksize)
+    # every kind goes through the same dense k x k loop, zeros included, so the
+    # timings in the MAX_DIM comment hold for all of them
+    kernel = make_kernel(kind, ksize, angle)
     source = original.astype(np.float64)
 
     start = time.time()
@@ -357,7 +571,7 @@ def blur():
 
     # the same operation from a library, as a check on the loop above
     start = time.time()
-    library = library_blur(img, ksize)
+    library, lib_call, lib_name = library_blur(img, source, kind, ksize, kernel)
     elapsed_lib = time.time() - start
 
     return render_template(
@@ -365,9 +579,16 @@ def blur():
         original=to_data_uri(original),
         blurred=to_data_uri(blurred),
         library=to_data_uri(library),
-        lib_call="ImageFilter.BoxBlur({:g})".format((ksize - 1) / 2),
+        lib_call=lib_call,
+        lib_name=lib_name,
         stats=compare(blurred, library),   # same operation, so the numbers mean something
         ksize=ksize,
+        kernel_kind=kind,
+        kernel_name=KERNELS[kind],
+        angle="{:g}".format(angle),
+        sigma="{:.3g}".format(ksize / 6.0),
+        # the weights themselves, for the Method panel
+        kernel_rows=[["{:.4f}".format(v) for v in row] for row in kernel],
         size="{} x {}".format(original.shape[1], original.shape[0]),
         elapsed="{:.2f}".format(elapsed),
         elapsed_lib="{:.4f}".format(elapsed_lib),
@@ -464,6 +685,114 @@ def edges():
     )
 
 
+@app.route("/brightness", methods=["POST"])
+def brightness():
+    file = request.files.get("image")
+    if file is None or file.filename == "":
+        return render_template("index.html", error="Please choose an image file.")
+
+    # the same range as the slider: at 2x everything brighter than mid-grey is
+    # already clipped white, so further up there is little image left
+    gain = min(max(float(request.form.get("gain", 1.0)), 0.0), 2.0)
+
+    try:
+        img = Image.open(file.stream).convert("RGB")
+    except Exception:
+        return render_template("index.html", error="That file could not be read as an image.")
+
+    # one multiply per value, so this would cope with far more than MAX_DIM,
+    # but the live preview in the browser reproduces this exact cap
+    img.thumbnail((MAX_DIM, MAX_DIM))
+    original = np.asarray(img, dtype=np.uint8)
+    source = original.astype(np.float64)
+
+    start = time.time()
+    brightened = np.zeros_like(source)
+    for c in range(3):  # the same gain on every channel, so the hue is kept
+        brightened[:, :, c] = brighten(source[:, :, c], gain)
+    elapsed = time.time() - start
+
+    # the share pushed past 255, which the clip flattens for good
+    clipped = 100.0 * float((brightened > 255.0).mean())
+    brightened = np.clip(brightened, 0, 255).astype(np.uint8)
+
+    start = time.time()
+    library, lib_call = library_brightness(img, gain)
+    elapsed_lib = time.time() - start
+
+    return render_template(
+        "index.html",
+        original=to_data_uri(original),
+        brightened=to_data_uri(brightened),
+        library=to_data_uri(library),
+        lib_call=lib_call,
+        lib_name="Pillow",
+        stats=compare(brightened, library),   # same operation, so the numbers mean something
+        gain="{:g}".format(gain),
+        clipped="{:.1f}".format(clipped) if clipped > 0 else None,
+        size="{} x {}".format(original.shape[1], original.shape[0]),
+        elapsed="{:.2f}".format(elapsed),
+        elapsed_lib="{:.4f}".format(elapsed_lib),
+        speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
+    )
+
+
+@app.route("/channels", methods=["POST"])
+def channels():
+    file = request.files.get("image")
+    if file is None or file.filename == "":
+        return render_template("index.html", error="Please choose an image file.")
+
+    # whole numbers, held to the sliders' range: at +-255 every value in the
+    # channel is already pinned to one end, so there is nowhere further to go
+    offsets = [min(max(int(float(request.form.get(k, 0))), -255), 255)
+               for k in ("red", "green", "blue")]
+
+    try:
+        img = Image.open(file.stream).convert("RGB")
+    except Exception:
+        return render_template("index.html", error="That file could not be read as an image.")
+
+    # the same cap as brightness, and for the same reason: adjust.js previews
+    # this at exactly this size
+    img.thumbnail((MAX_DIM, MAX_DIM))
+    original = np.asarray(img, dtype=np.uint8)
+    source = original.astype(np.float64)
+
+    start = time.time()
+    shifted = np.zeros_like(source)
+    for c in range(3):  # each channel its own offset, which is what moves the hue
+        shifted[:, :, c] = shift_channel(source[:, :, c], offsets[c])
+    elapsed = time.time() - start
+
+    # pushed off either end, where the clip pins them
+    clipped = 100.0 * float(((shifted < 0.0) | (shifted > 255.0)).mean())
+    shifted = np.clip(shifted, 0, 255).astype(np.uint8)
+
+    start = time.time()
+    library, lib_call = library_channels(img, offsets)
+    elapsed_lib = time.time() - start
+
+    return render_template(
+        "index.html",
+        original=to_data_uri(original),
+        shifted=to_data_uri(shifted),
+        library=to_data_uri(library),
+        lib_call=lib_call,
+        lib_name="Pillow",
+        stats=compare(shifted, library),   # same operation, so the numbers mean something
+        red=offsets[0],
+        green=offsets[1],
+        blue=offsets[2],
+        rgb_signed=[signed(d) for d in offsets],
+        clipped="{:.1f}".format(clipped) if clipped > 0 else None,
+        size="{} x {}".format(original.shape[1], original.shape[0]),
+        elapsed="{:.2f}".format(elapsed),
+        elapsed_lib="{:.4f}".format(elapsed_lib),
+        speedup="{:.0f}".format(elapsed / elapsed_lib) if elapsed_lib > 0 else None,
+    )
+
+
 @app.route("/denoise", methods=["POST"])
 def denoise_view():
     file = request.files.get("image")
@@ -547,7 +876,10 @@ def compress_view():
     if file is None or file.filename == "":
         return render_template("index.html", error="Please choose an image file.")
 
-    keep = float(request.form.get("keep", 5))
+    # capped at 25%, the same as the slider. A kept bin costs about 7 bytes
+    # against 3 per raw pixel, so 25% is only ~1.7x smaller and break-even is
+    # near 43%; past the cap the "compressed" file stops earning the name.
+    keep = min(max(float(request.form.get("keep", 5)), 0.5), 25.0)
 
     try:
         img = Image.open(file.stream).convert("RGB")
