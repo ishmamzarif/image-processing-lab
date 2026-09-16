@@ -1,0 +1,105 @@
+{# --- the box convolution, animated in the browser on the picked file --- #}
+<section class="conv" id="conv" hidden>
+    <div class="meta">
+        <b>Convolution</b>
+        <i>&middot;</i> <span id="conv-k">5 &times; 5</span> box kernel
+        <i>&middot;</i> <span id="conv-pos">&mdash;</span>
+        <i>&middot;</i> <u id="conv-pct">0.0%</u>
+    </div>
+
+    <div class="conv__grid is-photo">
+        <div class="plate">
+            <div class="plate__bar"><span>Original</span> <span class="conv__sub">kernel position</span></div>
+            <div class="conv__well">
+                <div class="conv__stack" id="conv-stack">
+                    <canvas class="conv__image" id="conv-image"></canvas>
+                    <canvas class="conv__overlay" id="conv-overlay"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar"><span>Output</span> <span id="conv-zoomf"></span></div>
+            <div class="conv__well">
+                <canvas id="conv-zoom"></canvas>
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar"><span>Kernel</span></div>
+            <div class="conv__well">
+                <canvas id="conv-kernel"></canvas>
+            </div>
+        </div>
+    </div>
+
+    {# --- the same convolution on a grid small enough to print the
+           numbers in, which is the only way the arithmetic is
+           readable. Greyscale, so each cell is one value. --- #}
+    <div class="conv__grid is-cells">
+        <div class="plate">
+            <div class="plate__bar"><span>Input</span> <span id="conv-gdims"></span></div>
+            <div class="conv__well">
+                <canvas id="conv-gin"></canvas>
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar"><span>Output</span></div>
+            <div class="conv__well">
+                <canvas id="conv-gout"></canvas>
+            </div>
+        </div>
+
+        <div class="plate conv__calc">
+            <div class="plate__bar"><span>This pixel</span></div>
+            <div class="conv__well">
+                <canvas id="conv-calc"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="conv__ctl">
+        <span class="conv__mode">
+            <button type="button" id="conv-mode-photo" class="is-on">Photo</button>
+            <button type="button" id="conv-mode-grid">Grid</button>
+        </span>
+        <button type="button" id="conv-play">Play</button>
+        <button type="button" id="conv-step">Step</button>
+        <button type="button" id="conv-reset">Reset</button>
+        <span class="conv__speed">
+            Speed
+            <input type="range" id="conv-speed" min="0" max="5" step="1" value="3">
+            <b id="v-conv-speed"></b>
+        </span>
+        <span class="conv__speed photo-only">
+            Zoom
+            <input type="range" id="conv-zoom-level" min="0" max="9" step="1" value="7">
+            <b id="v-conv-zoom">14&times;</b>
+        </span>
+        <span class="conv__speed cells-only">
+            Grid
+            <input type="range" id="conv-grid-size" min="0" max="5" step="1" value="2">
+            <b id="v-conv-grid">10</b>
+        </span>
+    </div>
+
+    <p class="conv__hint photo-only">
+        The same loop <code>convolve2d</code> runs, one output pixel at a time.
+        Left is your image untouched, with the kernel walking over it; right is
+        the output, empty until each pixel is computed. Click the original to
+        jump the run there, or drop the speed to 1&nbsp;px to watch the kernel
+        move a single step per frame. Set zoom to <em>fit</em> to see the whole
+        output beside the whole input; the wheel works over the panel too.
+    </p>
+    <p class="conv__hint cells-only">
+        Your image, reduced to a grid coarse enough to watch. The kernel
+        carries its weights and eases from cell to cell; each stop multiplies
+        the pixels under it by those weights and sums them into one output
+        cell. All three colour channels, exactly as <code>convolve2d</code>
+        does it &mdash; the working panel breaks one stop down into its terms.
+        Coarse grids show the arithmetic but lose the picture; raise the grid
+        slider until the photo reads, at the cost of the weights being too
+        small to print on the kernel.
+    </p>
+</section>

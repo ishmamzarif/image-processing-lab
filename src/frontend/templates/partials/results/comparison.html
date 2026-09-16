@@ -1,0 +1,75 @@
+{# The result layout shared by blur, sharpen, edges, brightness and channels:
+   the original beside ours, then the library's version with a note comparing them.
+
+   It is not rendered directly. Each of those features has its own file in this
+   folder that sets the few things that differ, then includes this one:
+
+       headline       the text at the start of the top row
+       out_label      what our image is called ("Blurred", "Edges", ...)
+       out_file       the download name, without .png
+       library_note   the explanation after the fixed first sentence of the note #}
+
+<section id="result" data-op="{{ active }}">
+    <div class="meta">
+        {{ headline }}
+        <i>&middot;</i> {{ size | replace(' x ', ' × ') }}
+        <i>&middot;</i> <u>{{ elapsed }} s</u>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar"><span>Original</span></div>
+            <div class="plate__well" data-cap="Original">
+                <img src="{{ original }}" alt="Original image">
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar">
+                <span>{{ out_label }}</span>
+                <a class="save" href="{{ result }}" download="{{ out_file }}.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="{{ out_label }}">
+                <img src="{{ result }}" alt="{{ out_label }} image">
+            </div>
+        </div>
+    </div>
+
+    {% if library %}
+    {# --- the same job handed to a library, for comparison --- #}
+    <div class="meta cmp__head">
+        <b>Library</b>
+        <i>&middot;</i> {{ lib_name or 'Pillow' }}
+        <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+        {% if speedup %}<i>&middot;</i> {{ speedup }}&times; faster{% endif %}
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                <a class="save" href="{{ library }}" download="{{ out_file }}-{{ (lib_name or 'Pillow') | lower }}.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                <img src="{{ library }}" alt="Produced by {{ lib_call }}">
+            </div>
+        </div>
+    </div>
+
+    {% if different_method %}
+    {# sharpen and edges: a different algorithm, so no numbers #}
+    <p class="cmp__note">
+        Not the same algorithm, so the two will not match pixel for pixel.
+        {{ library_note }}
+    </p>
+    {% else %}
+    {# blur, brightness, channels: the same operation, so the difference means something #}
+    <p class="cmp__note">
+        <b>{{ stats.max }}</b> is the largest difference of any channel value, out
+        of 255, and <b>{{ stats.within1 }}%</b> are within 1 &mdash; the two images
+        are the same picture.
+        {{ library_note }}
+    </p>
+    {% endif %}
+    {% endif %}
+</section>

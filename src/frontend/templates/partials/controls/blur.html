@@ -1,0 +1,30 @@
+{# Blur: kernel shape, size, motion angle, and the visualiser toggle #}
+
+<div class="field f-kernel">
+    <label class="label" for="kernel">Kernel</label>
+    <select name="kernel" id="kernel">
+        <option value="box" {% if kk=='box' %}selected{% endif %}>Box</option>
+        <option value="gaussian" {% if kk=='gaussian' %}selected{% endif %}>Gaussian</option>
+        <option value="disk" {% if kk=='disk' %}selected{% endif %}>Circular</option>
+        <option value="motion" {% if kk=='motion' %}selected{% endif %}>Motion</option>
+    </select>
+</div>
+
+{# step="2" keeps the kernel odd, so the padding stays symmetric
+   and the blurred image does not shift by half a pixel #}
+<div class="field f-ksize">
+    <label class="label" for="ksize">Kernel size <b class="val" id="v-ksize" aria-hidden="true"></b></label>
+    <input type="range" name="ksize" id="ksize"
+           min="3" max="11" step="2" value="{{ ks }}">
+</div>
+
+<div class="field f-angle">
+    <label class="label" for="angle">Angle <b class="val" id="v-angle" aria-hidden="true"></b></label>
+    <input type="range" name="angle" id="angle"
+           min="0" max="180" step="5" value="{{ angle or '0' }}">
+</div>
+
+<div class="field f-viz">
+    <button type="button" class="viz-btn" id="viz-toggle"
+            aria-pressed="false">Show visualisation</button>
+</div>

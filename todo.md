@@ -1,22 +1,22 @@
 
 ## Features
-- [ ] Improve UI, preview
+- [x] Resize
+- [x] Cropping
+- [ ] Encryption
+- [x] Improve UI, preview
 - [ ] fix the call flow and methods after final
         refactoring
-- [ ] Resize
-- [ ] Cropping
-- [ ] Encryption
 - [ ] improve compress feature
 - [ ] deploy the site
 
 ## UI
-- [ ] Drop-down for operation select
-- [ ] Filters
-    - [ ] Invert 
-    - [ ] Black and White
-    - [ ] Grayscale
-    - [ ] Pixelate
-    - [ ] Vintage
+- [x] Drop-down for operation select
+- [x] Filters
+    - [x] Invert 
+    - [x] Black and White
+    - [x] Grayscale
+    - [x] Pixelate
+    - [x] Vintage
 
 ## Completed
 - [x] Brightness

@@ -1,0 +1,16 @@
+{# Channels result: fills in the shared layout in comparison.html #}
+
+{% set out_label = 'Adjusted' %}
+{% set out_file = 'channels-r' ~ red ~ '-g' ~ green ~ '-b' ~ blue %}
+
+{% set headline %}<b>Channels</b> <i>&middot;</i> R {{ rgb_signed[0] }} <i>&middot;</i> G {{ rgb_signed[1] }} <i>&middot;</i> B {{ rgb_signed[2] }}{% if clipped %} <i>&middot;</i> {{ clipped }}% clipped{% endif %}{% endset %}
+
+{% set library_note %}
+Pillow does not add anything per pixel: <code>point</code> takes a table of
+what each of the 256 input values becomes, one table per channel, and looks
+every pixel up in it. The table was built with the same addition and the
+same clip, and with whole numbers there is nothing to round, so the two
+are the same function reached two ways.
+{% endset %}
+
+{% include 'partials/results/comparison.html' %}

@@ -1,0 +1,25 @@
+{# Blur result: fills in the shared layout in comparison.html #}
+
+{% set out_label = 'Blurred' %}
+{% set out_file = 'blur-' ~ (kernel_kind or 'box') ~ '-' ~ ksize ~ 'x' ~ ksize %}
+
+{# the row is uppercased, so sigma sits in <u>, which keeps its case #}
+{% set headline %}<b>Blur</b> <i>&middot;</i> {{ ksize }} &times; {{ ksize }} {{ kernel_name or 'box' }} kernel{% if kernel_kind == 'gaussian' %}, <u>&sigma; {{ sigma }}</u>{% elif kernel_kind == 'motion' %} at {{ angle }}&deg;{% endif %}{% endset %}
+
+{% set library_note %}
+{% if lib_name == 'SciPy' %}
+SciPy is given the same kernel{% if kernel_kind == 'gaussian' %}
+(<code>gaussian_filter</code> builds it separably, as the product of two
+1D Gaussians, which is the same thing){% endif %} and the same edge
+replication, and its result is truncated to uint8 just as
+<code>convolve2d</code>'s is. What is left is only the order the products
+were added in, which can move a value sitting right on a boundary by one.
+{% else %}
+Pillow replicates the border as well, so they agree
+at the edges too. What is left is rounding: <code>convolve2d</code> ends
+with <code>astype(np.uint8)</code>, which truncates, while Pillow rounds
+and works in fixed-point internally.
+{% endif %}
+{% endset %}
+
+{% include 'partials/results/comparison.html' %}

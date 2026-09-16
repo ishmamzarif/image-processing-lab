@@ -1,0 +1,73 @@
+{# Compress (backend/features/compress.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                 <i>features/compress.py</i>
+ ├─ <b>open_image</b>(file, 256)              <i>common/uploads.py</i>
+ ├─ <b>encode</b>(clean, keep)
+ │   ├─ <b>pad_to_pow2</b>(rgb)           ①   <i>common/fourier_2d.py</i>
+ │   ├─ <b>fft2</b>(channel) × 3          ②   <i>common/fourier_2d.py</i>
+ │   ├─ luma = Σ w·X_c             ③
+ │   ├─ np.argpartition(…)         ④
+ │   ├─ chosen |= chosen[partner]  ⑤
+ │   └─ X / MN → float16           ⑥
+ ├─ <b>decode</b>(packed)
+ │   ├─ scatter X, conj(X)         ⑦
+ │   └─ <b>ifft2</b> → real → crop        ⑧   <i>common/fourier_2d.py</i>
+ ├─ <b>packed_bytes</b>(packed)           ⑨
+ ├─ <b>library_jpeg</b>(img, bytes)           <i>baseline</i>
+ └─ <b>pixel_loss</b> / <b>psnr</b>              ⑩   <i>common/metrics.py</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">M = 2^{\lceil \log_2 H \rceil}, \qquad N = 2^{\lceil \log_2 W \rceil}</div>
+<pre class="code" data-lang="python">padded, (h, w) = pad_to_pow2(rgb)</pre>
+        <em>Radix-2 needs power-of-two sides. The padding is a reflection, as in Denoise, so the border adds no hard step whose broadband spectrum would compete for the kept slots. It is not free here: the kept share is of the padded spectrum, so a 256×170 image loses 170/256 of its ratio.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">X_c[u,v] = \sum_{m=0}^{M-1} \sum_{n=0}^{N-1} x_c[m,n]\; e^{-2\pi i\,(um/M \,+\, vn/N)}, \qquad c \in \{R, G, B\}</div>
+<pre class="code" data-lang="python">spectra = [fft2(padded[:, :, c]) for c in range(3)]</pre>
+        <em>One 2D transform per channel, each the hand-written radix-2 FFT run along every row and then every column.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">X_Y = 0.299\,X_R + 0.587\,X_G + 0.114\,X_B</div>
+<pre class="code" data-lang="python">luma = spectra[0] * 0.299 + spectra[1] * 0.587 + spectra[2] * 0.114</pre>
+        <em>The transform is linear, so the spectrum of the luma is the same weighted sum of the channel spectra, and no fourth transform is needed. One set of positions chosen on it serves all three channels, so each position is stored once.</em></div></div>
+    <div class="eq"><span class="eq__n">④</span><div class="eq__body">
+        <div class="tex">S = \operatorname{top}_K \big|X_Y[u,v]\big|, \qquad K = \operatorname{round}(\mathrm{keep} \cdot MN)</div>
+<pre class="code" data-lang="python">count = int(np.clip(round(keep * size), 1, size))
+top = np.argpartition(mag.ravel(), -count)[-count:]</pre>
+        <em>A partial sort: it finds the K largest without ordering them, which is all that is needed.</em></div></div>
+    <div class="eq"><span class="eq__n">⑤</span><div class="eq__body">
+        <div class="tex">X_c[-u \bmod M,\ -v \bmod N] = \overline{X_c[u,v]}</div>
+<pre class="code" data-lang="python">chosen |= chosen[partner]
+idx = np.flatnonzero(chosen &amp; (np.arange(size) &lt;= partner))</pre>
+        <em>A real image has a conjugate-symmetric spectrum, so the two bins of a pair carry the same information. The kept set is closed under pairing, and then only the member with the smaller index is stored: half the storage, for nothing.</em></div></div>
+    <div class="eq"><span class="eq__n">⑥</span><div class="eq__body">
+        <div class="tex">\hat{X}_c[s] = \operatorname{fp16}\!\left( \frac{X_c[s]}{MN} \right), \qquad s \in S_{\text{half}}</div>
+<pre class="code" data-lang="python">kept = spectra[c].ravel()[idx] / size
+values[c, :, 0] = kept.real
+values[c, :, 1] = kept.imag</pre>
+        <em>float16 is where most of the bytes are saved. The division matters: unscaled, the DC bin of a white 256×256 channel is 65536, past float16's largest value of 65504.</em></div></div>
+    <div class="eq"><span class="eq__n">⑦</span><div class="eq__body">
+        <div class="tex">\tilde{X}_c[u,v] = \begin{cases} MN\,\hat{X}_c[u,v] &amp; (u,v) \in S \\ 0 &amp; \text{otherwise} \end{cases}</div>
+<pre class="code" data-lang="python">flat[partner] = np.conj(kept)
+flat[idx] = kept</pre>
+        <em>Decoding puts each stored value back, writes its conjugate at the partner position, and leaves everything else zero.</em></div></div>
+    <div class="eq"><span class="eq__n">⑧</span><div class="eq__body">
+        <div class="tex">\tilde{x}_c[m,n] = \frac{1}{MN} \sum_{u=0}^{M-1} \sum_{v=0}^{N-1} \tilde{X}_c[u,v]\; e^{+2\pi i\,(um/M \,+\, vn/N)}</div>
+<pre class="code" data-lang="python">out[:, :, c] = np.real(ifft2(flat.reshape(m, n)))[:h, :w]</pre>
+        <em>With both halves of every pair restored, the result is real up to round-off (about 10⁻¹⁶ of the signal), so taking the real part loses nothing. Then it is cropped back to the original size.</em></div></div>
+    <div class="eq"><span class="eq__n">⑨</span><div class="eq__body">
+        <div class="tex">\text{bytes} = |S_{\text{half}}| \cdot \big(\underbrace{2}_{\text{position}} + \underbrace{3 \cdot 2 \cdot 2}_{\text{RGB} \,\times\, \text{re, im}}\big), \qquad \text{ratio} = \frac{3HW}{\text{bytes}} \approx \frac{3}{7\,\mathrm{keep}}</div>
+<pre class="code" data-lang="python">return int(packed["idx"].nbytes + packed["values"].nbytes)</pre>
+        <em>14 bytes per stored pair, about 7 per kept bin, against 3 per raw pixel. So 5% kept is about 8.6× smaller, and the codec breaks even near 43%.</em></div></div>
+    <div class="eq"><span class="eq__n">⑩</span><div class="eq__body">
+        <div class="tex">\begin{aligned} \text{loss} &amp;= \frac{100}{255} \cdot \operatorname{mean} \big| x - \tilde{x} \big| \ \%, \qquad \text{quality} = 100 - \text{loss} \\ \mathrm{PSNR} &amp;= 10 \log_{10} \frac{1}{\mathrm{MSE}}, \qquad \mathrm{MSE} = \operatorname{mean}\,(x - \tilde{x})^2 \end{aligned}</div>
+<pre class="code" data-lang="python">def pixel_loss(a, b):
+    diff = np.abs(a.astype(np.int16) - b.astype(np.int16))
+    return 100.0 * float(np.mean(diff)) / 255.0</pre>
+        <em>Both are measured on the 8-bit images shown, for ours and JPEG alike, and they fill the stats table at the end of the result.</em></div></div>
+</div>

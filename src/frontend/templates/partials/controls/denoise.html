@@ -1,0 +1,46 @@
+{# Denoise: which noise to add, which filter removes it, and what the spectrum panel shows #}
+
+<div class="field f-noise">
+    <label class="label" for="noise">Noise</label>
+    <select name="noise" id="noise">
+        <option value="periodic" {% if noise=='periodic' %}selected{% endif %}>Periodic stripes</option>
+        <option value="grain" {% if noise=='grain' %}selected{% endif %}>Grain</option>
+        <option value="both" {% if noise=='both' %}selected{% endif %}>Both</option>
+    </select>
+</div>
+
+<div class="field f-namt">
+    <label class="label" for="noise_amount">Noise amount <b class="val" id="v-noise_amount" aria-hidden="true"></b></label>
+    <input type="range" name="noise_amount" id="noise_amount"
+           min="0.05" max="0.6" step="0.05" value="{{ noise_amount or '0.3' }}">
+</div>
+
+<div class="field f-filt">
+    <label class="label" for="filter">Filter</label>
+    <select name="filter" id="filter">
+        <option value="notch" {% if filt=='notch' %}selected{% endif %}>Notch the peaks</option>
+        <option value="gaussian" {% if filt=='gaussian' %}selected{% endif %}>Gaussian low-pass</option>
+        <option value="ideal" {% if filt=='ideal' %}selected{% endif %}>Hard circular low-pass</option>
+    </select>
+</div>
+
+<div class="field f-nwidth">
+    <label class="label" for="nwidth">Notch width <b class="val" id="v-nwidth" aria-hidden="true"></b></label>
+    <input type="range" name="nwidth" id="nwidth" min="0.5" max="12" step="0.5" value="{{ nwidth or '3' }}">                </div>
+
+<div class="field f-fcut">
+    <label class="label" for="fcut">Cutoff radius <b class="val" id="v-fcut" aria-hidden="true"></b></label>
+    <input type="range" name="fcut" id="fcut" min="4" max="120" step="1" value="{{ fcut or '45' }}">                </div>
+
+<div class="field f-soft">
+    <label class="label" for="softness">Softness <b class="val" id="v-softness" aria-hidden="true"></b></label>
+    <input type="range" name="softness" id="softness" min="0" max="100" step="5" value="{{ softness or '20' }}">                </div>
+
+<div class="field f-view">
+    <label class="label" for="specview">Spectrum panel</label>
+    <select name="specview" id="specview">
+        <option value="mask" {% if specview=='mask' %}selected{% endif %}>Spectrum with mask</option>
+        <option value="spectrum" {% if specview=='spectrum' %}selected{% endif %}>Spectrum only</option>
+        <option value="removed" {% if specview=='removed' %}selected{% endif %}>Discarded only</option>
+    </select>
+</div>

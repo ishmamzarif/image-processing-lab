@@ -1,0 +1,21 @@
+{# Channels: one offset slider per colour #}
+
+{# +-255 matches the clamp in app2.channels: that far out every
+   value in the channel is pinned to one end #}
+<div class="field f-rgb">
+    <label class="label" for="red">Red <b class="val" id="v-red" aria-hidden="true"></b></label>
+    <input type="range" name="red" id="red"
+           min="-255" max="255" step="1" value="{{ red or '0' }}">
+</div>
+
+<div class="field f-rgb">
+    <label class="label" for="green">Green <b class="val" id="v-green" aria-hidden="true"></b></label>
+    <input type="range" name="green" id="green"
+           min="-255" max="255" step="1" value="{{ green or '0' }}">
+</div>
+
+<div class="field f-rgb">
+    <label class="label" for="blue">Blue <b class="val" id="v-blue" aria-hidden="true"></b></label>
+    <input type="range" name="blue" id="blue"
+           min="-255" max="255" step="1" value="{{ blue or '0' }}">
+</div>

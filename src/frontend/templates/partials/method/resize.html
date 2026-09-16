@@ -1,0 +1,38 @@
+{# Resize (backend/features/resize.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                        <i>features/resize.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                     <i>common/uploads.py</i>
+ ├─ <b>resize_nearest</b>(source, scale)
+ │   ├─ <b>new_size</b>(old size, scale) × 2     ①
+ │   ├─ <b>old_positions</b>(old, new) × 2       ②
+ │   └─ for y, for x: copy one old pixel  ③
+ ├─ .astype(np.uint8)
+ └─ <b>library_resize</b>(img, scale)                <i>baseline</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">W' = \lfloor W \cdot s + 0.5 \rfloor, \quad H' = \lfloor H \cdot s + 0.5 \rfloor, \qquad s = {{ scale }}\%</div>
+<pre class="code" data-lang="python">return max(1, int(old_size * scale + 0.5))</pre>
+        <em>The new width and height: the old ones times the scale, rounded to whole pixels. The image keeps its shape because both sides use the same scale.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\text{step} = \frac{W}{W'}, \qquad p_0 = \frac{\text{step}}{2}, \quad p_{i+1} = p_i + \text{step}, \qquad \text{old column}_i = \lfloor p_i \rfloor</div>
+<pre class="code" data-lang="python">step = old_size / new_size
+position = step * 0.5
+positions = []
+for i in range(new_size):
+    positions.append(int(position))
+    position += step</pre>
+        <em>Which old column sits under the middle of each new column. The first middle is half a step in, and each next one is a step further. Shrinking makes the step bigger than 1, so some old columns are skipped; enlarging makes it smaller than 1, so old columns are used more than once. Rows are found the same way.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\mathrm{out}[y, x] = \mathrm{in}\big[\text{old row}_y,\ \text{old column}_x\big]</div>
+<pre class="code" data-lang="python">for y in range(height):
+    for x in range(width):
+        out[y, x] = image[rows[y], columns[x]]</pre>
+        <em>Every new pixel is a straight copy of one old pixel, all three channels at once. Nothing is mixed, so no new colours appear, which is what makes nearest neighbour look blocky when it enlarges.</em></div></div>
+</div>

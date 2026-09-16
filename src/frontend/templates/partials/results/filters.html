@@ -1,0 +1,34 @@
+{# Filters result: fills in the shared layout in comparison.html #}
+
+{% set out_label = 'Filtered' %}
+{% set out_file = 'filter-' ~ filter_kind ~ '-' ~ (gray_amount or invert_amount or threshold or block or vintage_amount) %}
+
+{% set headline %}<b>Filters</b> <i>&middot;</i> {{ filter_name }} <i>&middot;</i> {{ filter_setting }}{% endset %}
+
+{% set library_note %}
+{% if filter_kind == 'black_and_white' %}
+Pillow works out each pixel's grey with the same weights, but rounds it to a
+whole number before comparing it with the threshold, while ours compares the
+exact value. A pixel whose grey sits within half a level of the threshold can
+land on the other side, and in a pure black and white picture that is a
+difference of the full 255 &mdash; which is why the largest difference can be
+255 while nearly every value still agrees.
+{% elif filter_kind == 'pixelate' %}
+<code>reduce</code> averages each tile the same way, edge tiles included, and
+<code>NEAREST</code> paints the average back over the tile. The one difference
+is that Pillow rounds the average, while ours is truncated by
+<code>astype</code>.
+{% elif filter_kind == 'invert' %}
+<code>Image.blend</code> is the same mix, <code>a + t&middot;(b &minus; a)</code>,
+with the inverted picture as <code>b</code>, and it truncates just as
+<code>astype</code> does.
+{% else %}
+<code>Image.blend</code> is the same mix, <code>a + t&middot;(b &minus; a)</code>,
+towards a fully filtered copy. That copy is where a level can go: Pillow
+works out the {% if filter_kind == 'grayscale' %}grey{% else %}sepia tone{% endif %}
+in whole numbers and rounds it, while ours keeps the exact value until the
+final <code>astype</code>.
+{% endif %}
+{% endset %}
+
+{% include 'partials/results/comparison.html' %}

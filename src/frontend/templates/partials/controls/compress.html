@@ -1,0 +1,9 @@
+{# Compress #}
+
+{# max="25" matches the clamp in app2.compress_view: at ~7 bytes per
+   kept bin, anything much past that is barely smaller than raw #}
+<div class="field f-keep">
+    <label class="label" for="keep">Coefficients kept <b class="val" id="v-keep" aria-hidden="true"></b></label>
+    <input type="range" name="keep" id="keep"
+           min="0.5" max="25" step="0.5" value="{{ keep or '5' }}">
+</div>

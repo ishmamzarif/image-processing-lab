@@ -1,0 +1,26 @@
+{# --- the live webcam view, opened by "Use camera" in the sidebar (camera.js).
+       While it is open it takes over the canvas; Capture turns the current
+       frame into the source image, exactly as if it had been picked as a
+       file. The view is mirrored like a selfie camera, and so is the photo. --- #}
+<section class="camera" id="camera">
+    <div class="meta">
+        <b>Camera</b>
+        <i>&middot;</i> <span id="camera-status">starting&hellip;</span>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar"><span>Live</span> <span class="conv__sub">mirrored</span></div>
+            <div class="conv__well">
+                <video class="camera__video" id="camera-video" autoplay playsinline muted></video>
+            </div>
+        </div>
+    </div>
+
+    <p class="note camera__error" id="camera-error" hidden><span>Camera</span> &nbsp; <i id="camera-error-text"></i></p>
+
+    <div class="conv__ctl">
+        <button type="button" id="camera-capture" disabled>Capture</button>
+        <button type="button" id="camera-cancel">Cancel</button>
+    </div>
+</section>

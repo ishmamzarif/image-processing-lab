@@ -1,0 +1,9 @@
+{# Brightness #}
+
+{# max="2" matches the clamp in app2.brightness: at 2x everything
+   brighter than mid-grey is already clipped white #}
+<div class="field f-gain">
+    <label class="label" for="gain">Gain <b class="val" id="v-gain" aria-hidden="true"></b></label>
+    <input type="range" name="gain" id="gain"
+           min="0" max="2" step="0.05" value="{{ gain or '1' }}">
+</div>

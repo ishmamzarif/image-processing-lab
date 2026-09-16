@@ -1,0 +1,22 @@
+{# The Method panel under a result: how it was produced, as a call tree (Flow)
+   and the maths behind each numbered step (Equations).
+
+   The content is one file per feature in this folder, picked by `active`. Each
+   holds both columns. Conventions inside them:
+     - the circled numbers tie a step in the flow to its equation
+     - each equation is TeX in a .tex element (typeset by KaTeX), then the real
+       source line in <pre class="code">, then a note in <em>
+     - <pre> keeps indentation, so code blocks sit at column 0
+     - inside .tex, never put two braces together, or a brace before % or #:
+       Jinja would read them as its own tags. Write & and < as &amp; and &lt; #}
+
+<section class="recipe">
+    <div class="meta"><b>Method</b> <i>&middot;</i> call flow and equations
+        <button type="button" class="recipe__toggle" id="recipe-toggle"
+                aria-expanded="false" aria-controls="recipe-body">Show</button></div>
+
+    {# hidden until toggles.js reads the remembered choice #}
+    <div class="recipe__grid" id="recipe-body" hidden>
+        {% include 'partials/method/' ~ active ~ '.html' %}
+    </div>
+</section>

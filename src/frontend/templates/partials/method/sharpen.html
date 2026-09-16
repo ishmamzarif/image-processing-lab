@@ -1,0 +1,29 @@
+{# Sharpen (backend/features/sharpen.py). The transform steps are shared with edges, in cft_equations.html. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                         <i>features/sharpen.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                      <i>common/uploads.py</i>
+ ├─ <b>sharpen_image</b>(source, D₀, amount)
+ │   └─ for c in (R, G, B):
+ │       ├─ <b>high_pass_detail</b>(channel, D₀)      <i>common/continuous_ft.py</i>
+ │       │   ├─ <b>spatial_axes</b>(H, W)         ①
+ │       │   ├─ <b>frequency_axes</b>(x, y)       ②
+ │       │   ├─ <b>compute_cft</b>(…)             ③
+ │       │   ├─ <b>high_pass</b>(re, im, D₀)      ④
+ │       │   └─ <b>reconstruct</b>(…)             ⑤
+ │       └─ source + amount · detail       ⑥
+ ├─ np.clip(… · 255).astype(np.uint8)
+ └─ <b>library_sharpen</b>(img, D₀, amount)           <i>baseline</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+{% set cft_steps = ['①', '②', '③', '④', '⑤'] %}
+{% include 'partials/method/cft_equations.html' %}
+    <div class="eq"><span class="eq__n">⑥</span><div>
+        <code>g(x,y) = f(x,y) + amount · detail(x,y)</code>
+        <em>The detail is added back on top. Past about 2 it overshoots and haloes appear along strong edges. A Gaussian of spatial width r matches a frequency width N/(2πr), which is how the Pillow radius below is derived rather than guessed.</em></div></div>
+</div>

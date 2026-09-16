@@ -1,0 +1,20 @@
+{# The continuous Fourier transform steps shared by sharpen and edges
+   (backend/common/continuous_ft.py). Included by sharpen.html and edges.html,
+   which set `cft_steps` first: the five step numbers to show, since edges has a
+   greyscale step before these and sharpen does not. #}
+
+    <div class="eq"><span class="eq__n">{{ cft_steps[0] }}</span><div>
+        <code>x = linspace(−1, 1, W),&nbsp;&nbsp; y = linspace(−1, 1, H)</code>
+        <em>The image is treated as a function on a continuous square, not as a sequence of samples.</em></div></div>
+    <div class="eq"><span class="eq__n">{{ cft_steps[1] }}</span><div>
+        <code>u ∈ [ −1/(2Δx), 1/(2Δx) ],&nbsp;&nbsp; v ∈ [ −1/(2Δy), 1/(2Δy) ]</code>
+        <em>The Nyquist limit: the highest frequency a grid of this spacing can carry.</em></div></div>
+    <div class="eq"><span class="eq__n">{{ cft_steps[2] }}</span><div>
+        <code>F(u,v) = ∬ f(x,y) · e<sup>−2πi(ux+vy)</sup> dx dy</code>
+        <em>The continuous transform, evaluated by the trapezoidal rule (<code>np.trapezoid</code>) rather than by a DFT. Split into cos and sin parts so it stays in real arithmetic, and integrated one axis at a time: along x for every row, then down y.</em></div></div>
+    <div class="eq"><span class="eq__n">{{ cft_steps[3] }}</span><div>
+        <code>F′(u,v) = F(u,v) · [ 1 − e<sup>−D(u,v)² / 2D₀²</sup> ],&nbsp;&nbsp; D = √( (v/Δv)² + (u/Δu)² )</code>
+        <em>A Gaussian low-pass subtracted from everything, which is unsharp masking done in the frequency domain. The edge has to be smooth: a hard circle here is a sinc in the image, so every edge would come back wrapped in ripples spreading across the whole picture. The radius is measured off the u and v axes rather than off array indices, because <code>linspace(−N, N, even)</code> has no exact zero bin to centre on.</em></div></div>
+    <div class="eq"><span class="eq__n">{{ cft_steps[4] }}</span><div>
+        <code>detail(x,y) = ∬ F′(u,v) · e<sup>+2πi(ux+vy)</sup> du dv</code>
+        <em>Back to the image. What survives is only the fast-changing part — edges and texture.</em></div></div>

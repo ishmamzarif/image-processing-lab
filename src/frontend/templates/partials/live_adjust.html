@@ -1,0 +1,31 @@
+{# --- brightness, channels or filters, redone in the browser on every
+       movement of a slider (and, for filters, on picking one) by adjust.js,
+       which fills in the title and parameters for whichever is selected.
+       Canvases sit in .conv__well rather than .plate__well, whose magnify
+       handler expects an <img>. --- #}
+<section class="live" id="live" hidden>
+    <div class="meta">
+        <b id="live-title">Brightness</b>
+        <i>&middot;</i> <span id="live-params">gain 1.00&times;</span>
+        <i>&middot;</i> <span id="live-dims">&mdash;</span>
+        <i>&middot;</i> live preview, <u id="live-ms">&mdash;</u>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar"><span>Original</span></div>
+            <div class="conv__well">
+                <canvas id="live-src"></canvas>
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar"><span>Preview</span> <span class="conv__sub">in the browser</span></div>
+            <div class="conv__well">
+                <canvas id="live-out"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <p class="conv__hint">You are seeing a preview, apply operation to download image</p>
+</section>

@@ -1,0 +1,8 @@
+{# Resize: one slider, the new size as a percentage of the image.
+   The range matches the clamp in backend/features/resize.py. #}
+
+<div class="field f-scale">
+    <label class="label" for="scale">Scale <b class="val" id="v-scale" aria-hidden="true"></b></label>
+    <input type="range" name="scale" id="scale"
+           min="10" max="200" step="5" value="{{ scale or '50' }}">
+</div>
