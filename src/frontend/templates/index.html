@@ -27,8 +27,12 @@
 </head>
 
 <body>
-    {# applied before anything paints, so a hidden rail never flashes open #}
-    <script>try { if (localStorage.getItem('rail') === 'off') document.body.dataset.rail = 'off'; } catch (e) { }</script>
+    {# applied before anything paints, so a hidden rail or a collapsed
+       operation list never flashes open and then animates shut #}
+    <script>try {
+        if (localStorage.getItem('rail') === 'off') document.body.dataset.rail = 'off';
+        if (localStorage.getItem('ops') === 'off') document.body.dataset.ops = 'off';
+    } catch (e) { }</script>
 
     {# --- the page's state, worked out from which result variable was passed ---
        active   the operation that produced this page (checks its radio, picks

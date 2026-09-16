@@ -73,7 +73,10 @@ body {
     position: relative;             /* anchors the rail toggle */
     display: grid;
     grid-template-columns: var(--rail) 1fr;
-    height: 100%;
+    /* at least the window, but free to grow with a long result. It has to
+       grow: the sticky rail below can only stay in view while it is inside
+       its parent, so a parent one window tall would carry it off screen. */
+    min-height: 100%;
 }
 
 /* ---------- rail ---------- */
@@ -109,9 +112,10 @@ body {
 /* ---------- rail toggle ---------- */
 
 /* Lives outside the rail, pinned to the top-left of the page, so it stays
-   on screen when the rail is gone. Hiding is display:none, which still
-   submits the fields, so a hidden rail keeps its settings for the next
-   run. The choice is on body[data-rail], saved under 'rail'. */
+   on screen when the rail is gone. A hidden rail is only out of sight
+   (visibility or display, below), and its fields are still submitted, so
+   it keeps its settings for the next run. The choice is on body[data-rail],
+   saved under 'rail'. */
 .rail-toggle {
     position: absolute;
     top: calc((var(--head) - 32px) / 2);
@@ -139,31 +143,98 @@ body {
 .rail-toggle__pane {
     fill: currentColor;
     fill-opacity: .25;
+    transition: fill-opacity 280ms ease-out;
 }
 
 body[data-rail="off"] .rail-toggle__pane {
     fill-opacity: 0;
 }
 
-body[data-rail="off"] .app {
-    grid-template-columns: 1fr;
+/* Narrow screens stack the rail above the results (see the end of the
+   file), so hiding simply takes it out, and the results get a band of
+   their own below the toggle. */
+@media (max-width: 900px) {
+    body[data-rail="off"] .rail {
+        display: none;
+    }
+
+    body[data-rail="off"] .canvas {
+        padding-top: var(--head);
+    }
 }
 
-body[data-rail="off"] .rail {
-    display: none;
-}
+/* Wide screens: the rail stays in view while the results scroll, and it
+   slides in and out.
 
-/* keep the results clear of the toggle: symmetric side room on a wide
-   screen so centred rows stay centred, a band of its own on a narrow one */
+   Staying in view: the rail is pinned to the top and exactly one window
+   tall, and scrolls on its own if the controls are taller than that. The
+   toggle is pinned to the window too.
+
+   Sliding: two things move together, with the same timing. The rail's
+   column narrows from --rail to 0, so the results widen into the space,
+   and the rail itself (still --rail wide) moves left by its own width, so
+   its right edge follows the column's edge exactly and it never overlaps
+   the results. When the slide is over, visibility: hidden takes it out of
+   the tab order; the 0s transition delayed by --rail-time is what waits
+   for the slide to finish before hiding it, and shows it at once on the
+   way back in. */
 @media (min-width: 901px) {
+    :root {
+        --rail-time: 280ms;
+        --rail-ease: cubic-bezier(.2, .7, .2, 1);   /* quick start, gentle stop */
+    }
+
+    .app {
+        transition: grid-template-columns var(--rail-time) var(--rail-ease);
+    }
+
+    .rail {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        width: var(--rail);
+        height: 100vh;
+        overflow-x: hidden;
+        transition: transform var(--rail-time) var(--rail-ease),
+                    visibility 0s linear 0s;
+    }
+
+    .rail-toggle {
+        position: fixed;
+    }
+
+    .canvas {
+        transition: padding var(--rail-time) var(--rail-ease);
+    }
+
+    body[data-rail="off"] .app {
+        grid-template-columns: 0px 1fr;
+    }
+
+    body[data-rail="off"] .rail {
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform var(--rail-time) var(--rail-ease),
+                    visibility 0s linear var(--rail-time);
+    }
+
+    /* keep the results clear of the toggle, with the same room on the
+       right so centred rows stay centred */
     body[data-rail="off"] .canvas {
         padding-inline: calc(var(--pad) + 54px);
     }
 }
 
-@media (max-width: 900px) {
-    body[data-rail="off"] .canvas {
-        padding-top: var(--head);
+/* people who have asked their system for less motion get the instant
+   version: same end states, no slide */
+@media (prefers-reduced-motion: reduce) {
+    .app,
+    .rail,
+    .canvas,
+    .rail-toggle__pane,
+    .ops__arrow,
+    .op {
+        transition: none !important;
     }
 }
 
@@ -276,9 +347,75 @@ body[data-rail="off"] .rail {
     border-bottom: 1px solid var(--line);
 }
 
-.ops>.label {
-    padding: 0 var(--pad);
+/* The OPERATION header is a button: clicking anywhere on it (the arrow
+   included) collapses the list to the selected operation, or opens it.
+   It keeps the look of the other section labels. */
+.ops__toggle {
+    width: 100%;
     margin-bottom: 6px;
+    padding: 0 var(--pad);
+    align-items: center;
+    background: none;
+    border: 0;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: color 90ms ease-out;
+}
+
+.ops__toggle:hover {
+    color: var(--ink);
+}
+
+.ops__toggle:focus-visible {
+    outline: 1px solid var(--line-2);
+    outline-offset: 2px;
+}
+
+/* drawn pointing right; turned a quarter to point down while open */
+.ops__arrow {
+    flex: none;
+    transform: rotate(90deg);
+    transition: transform 260ms cubic-bezier(.2, .7, .2, 1);
+}
+
+body[data-ops="off"] .ops__arrow {
+    transform: rotate(0deg);
+}
+
+/* Opening and closing. Each operation is a grid with one row: 1fr is its
+   natural height and 0fr is nothing, and a browser can animate between the
+   two, which it cannot do for height: auto. .op__clip hides the part that
+   no longer fits while the row shrinks.
+
+   Opening, the rows grow and fade in one after another, 25 ms apart (--i is
+   the position in the list, set in sidebar.html). Closing is quicker and
+   all at once, and visibility: hidden waits for the end of it (the delayed
+   0s transition) so the hidden radios drop out of keyboard reach. The
+   selected operation is never collapsed, so what Apply will run stays in
+   view. */
+.op {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 280ms cubic-bezier(.2, .7, .2, 1),
+                opacity 280ms ease-out,
+                visibility 0s;
+    transition-delay: calc(var(--i, 0) * 25ms);
+}
+
+body[data-ops="off"] .op:not(:has(input:checked)) {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition: grid-template-rows 200ms ease-in,
+                opacity 150ms ease-in,
+                visibility 0s linear 200ms;
+}
+
+.op__clip {
+    position: relative;   /* keeps the hidden radio inside the clip */
+    min-height: 0;
+    overflow: hidden;
 }
 
 .op input {

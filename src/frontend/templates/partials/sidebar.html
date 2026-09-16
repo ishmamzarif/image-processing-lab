@@ -44,16 +44,29 @@
         <p class="file__hint">{{ MAX_DIM | default(500) }} px max &middot; kept between runs</p>
     </div>
 
-    <div class="ops">
-        <span class="label">Operation</span>
+    {# The list can be collapsed to just the selected operation with the arrow
+       (toggles.js, saved under 'ops'). Each .op is a one-row grid whose row
+       shrinks to nothing when collapsed; .op__clip hides what does not fit,
+       and --i staggers the animation down the list. #}
+    <div class="ops" id="ops">
+        <button type="button" class="label ops__toggle" id="ops-toggle"
+                aria-expanded="true" aria-controls="ops">
+            Operation
+            <svg class="ops__arrow" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6"
+                      stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
 
         {% for id, name, note, _ in operations %}
-        <div class="op">
-            <input type="radio" name="op" id="op-{{ id }}" value="{{ id }}" {% if active==id %}checked{% endif %}>
-            <label class="op__row" for="op-{{ id }}">
-                <span class="op__name">{{ name }}</span>
-                <span class="op__note">{{ note }}</span>
-            </label>
+        <div class="op" style="--i: {{ loop.index0 }}">
+            <div class="op__clip">
+                <input type="radio" name="op" id="op-{{ id }}" value="{{ id }}" {% if active==id %}checked{% endif %}>
+                <label class="op__row" for="op-{{ id }}">
+                    <span class="op__name">{{ name }}</span>
+                    <span class="op__note">{{ note }}</span>
+                </label>
+            </div>
         </div>
         {% endfor %}
     </div>

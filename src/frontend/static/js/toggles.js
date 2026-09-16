@@ -1,8 +1,9 @@
-/* The three show/hide buttons, each remembered per browser in localStorage.
+/* The four show/hide buttons, each remembered per browser in localStorage.
  *
  *   conv-viz   the blur visualiser             (body[data-viz])
  *   recipe     the Method panel under a result (#recipe-body hidden)
  *   rail       the sidebar                     (body[data-rail])
+ *   ops        the operation list's arrow      (body[data-ops])
  *
  * The page reloads on every run, so without remembering, each would reset.
  * Storage calls are wrapped because storage throws outright in a few contexts
@@ -71,5 +72,27 @@
 
     btn.addEventListener('click', function () {
         apply(document.body.dataset.rail === 'off', true);
+    });
+})();
+
+// The operation list can be collapsed to just the selected operation. The
+// arrow points right when collapsed and turns down when open; the turning and
+// the list opening are both CSS transitions on body[data-ops]. Like the rail,
+// a saved "off" was applied before first paint, so a collapsed list does not
+// animate shut on every page load.
+(function () {
+    var btn = document.getElementById('ops-toggle');
+    var KEY = 'ops';
+
+    function apply(open, save) {
+        document.body.dataset.ops = open ? 'on' : 'off';
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (save) { try { localStorage.setItem(KEY, open ? 'on' : 'off'); } catch (e) { } }
+    }
+
+    apply(document.body.dataset.ops !== 'off', false);
+
+    btn.addEventListener('click', function () {
+        apply(document.body.dataset.ops === 'off', true);
     });
 })();
