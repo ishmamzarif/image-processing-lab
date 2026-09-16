@@ -1,0 +1,104 @@
+<section id="result">
+    <div class="meta">
+        <b>Denoise</b>
+        <i>&middot;</i> {{ noise }} noise at {{ noise_amount }}
+        <i>&middot;</i> {% if filt == 'notch' %}notch, {{ peaks }} peak{{ '' if peaks == 1 else 's' }} found,
+        width {{ nwidth }}{% else %}{{ filt }} low-pass, cutoff {{ fcut }}{% endif %}
+        <i>&middot;</i> {{ kept }}% of the spectrum kept
+        <i>&middot;</i> {{ size | replace(' x ', ' × ') }}
+        <i>&middot;</i> <u>{{ elapsed }} s</u>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar"><span>Original</span></div>
+            <div class="plate__well" data-cap="Original">
+                <img src="{{ original }}" alt="Original image">
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Noisy</span>
+                {% if psnr_noisy %}<span class="conv__sub">{{ psnr_noisy }} dB</span>{% endif %}
+            </div>
+            <div class="plate__well" data-cap="Noisy input">
+                <img src="{{ noisy }}" alt="Noisy image">
+            </div>
+        </div>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Spectrum</span>
+                <span class="conv__sub">log |X|, centred &middot; {{ spec_size }}</span>
+            </div>
+            <div class="plate__well" data-cap="Spectrum — {{ spec_size }}">
+                <img src="{{ spectrum }}" alt="Frequency spectrum">
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Denoised</span>
+                {% if psnr_clean %}<span class="conv__sub">{{ psnr_clean }} dB</span>{% endif %}
+                <a class="save" href="{{ denoised }}" download="denoised.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Denoised">
+                <img src="{{ denoised }}" alt="Denoised image">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        {% if filt == 'notch' and peaks == 0 %}
+        No peak stood far enough above the rest of the spectrum to be called
+        noise, so nothing was removed &mdash; which is the honest answer for
+        grain. Grain is spread over every frequency at once, so there is no small
+        set of bins to cut. Try a low-pass, and watch it take detail along with
+        the noise.
+        {% elif filt == 'notch' %}
+        {{ peaks }} peaks removed, {{ kept }}% of the spectrum kept. The stripes
+        were a few sinusoids, so they occupied a few bins, so almost the whole
+        picture came through untouched &mdash; compare the dB figures above.
+        {% else %}
+        Everything outside a radius of {{ fcut }} was discarded, keeping {{ kept }}%
+        of the spectrum. This is the only filter that reaches grain, and the cost
+        is detail: fine texture lives out in the frequencies being thrown away.
+        {% endif %}
+    </p>
+
+    {% if library %}
+    {# --- the identical mask, applied with numpy's FFT instead of ours.
+           Same algorithm this time, so the numbers do mean something:
+           what they measure is transforms.py itself. --- #}
+    <div class="meta cmp__head">
+        <b>Library</b>
+        <i>&middot;</i> numpy
+        <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+        {% if speedup %}<i>&middot;</i> {{ speedup }}&times; faster{% endif %}
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                <a class="save" href="{{ library }}" download="denoised-numpy.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                <img src="{{ library }}" alt="Denoised using numpy's FFT">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        The same mask, the same multiply, the same inverse &mdash; only the
+        transform is swapped. So this is a direct test of
+        <code>transforms.py</code>: the largest difference of any channel value
+        is <b>{{ stats.max }}</b> out of 255, with <b>{{ stats.within1 }}%</b>
+        within 1. The radix-2 butterflies agree with numpy's FFT. The time
+        column is the honest cost of writing them in Python.
+    </p>
+    {% endif %}
+</section>

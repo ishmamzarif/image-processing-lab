@@ -1,0 +1,37 @@
+{# Channels (backend/features/channels.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                  <i>features/channels.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})               <i>common/uploads.py</i>
+ ├─ <b>shift_image</b>(source, offsets)
+ │   └─ for c in (R, G, B):
+ │       └─ <b>shift_channel</b>(channel, d_c)
+ │           └─ two nested loops    ①
+ ├─ np.clip(…).astype(np.uint8)     ②
+ └─ <b>library_channels</b>(img, offsets)      <i>baseline</i>
+     └─ img.point(lut)              ③</pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">\mathrm{out}_c[y,x] = \mathrm{src}_c[y,x] + d_c, \qquad d_R = {{ red }}, \quad d_G = {{ green }}, \quad d_B = {{ blue }}</div>
+<pre class="code" data-lang="python">for y in range(h):
+    for x in range(w):
+        out[y, x] = channel[y, x] + offset</pre>
+        <em>The same point operation as Brightness, but added rather than multiplied, and a different amount for each channel. That changes the balance between them, so unlike a shared gain it moves the hue: lifting red alone turns a grey pixel pink. It is how a colour cast is put in or taken out. The same offset on all three would be brightness by addition instead.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\mathrm{dst}_c[y,x] = \operatorname{clip}(\mathrm{out}_c[y,x],\ 0,\ 255)</div>
+<pre class="code" data-lang="python">shifted = np.clip(shifted, 0, 255).astype(np.uint8)</pre>
+        <em>{% if clipped %}{{ clipped }}% of the values ran off one end or the other and were pinned there. {% endif %}An offset clips at both ends, and it costs contrast as well: a positive d<sub>c</sub> maps the channel's 0&ndash;255 onto d<sub>c</sub>&ndash;255, so its blacks are lifted off black. Everything is a whole number, so the <code>astype</code> truncates nothing.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\mathrm{lut}_c[v] = \operatorname{clip}(v + d_c,\ 0,\ 255), \quad v = 0, \dots, 255, \qquad \mathrm{dst}_c[y,x] = \mathrm{lut}_c\big[\mathrm{src}_c[y,x]\big]</div>
+<pre class="code" data-lang="python">lut = []
+for d in offsets:
+    lut += [min(max(v + d, 0), 255) for v in range(256)]
+img.point(lut)</pre>
+        <em>How the library does it. The output depends on the input value alone, so each channel has only 256 possible answers: work them out once, then every pixel is a lookup. 768 evaluations instead of 3·H·W, and the lookups themselves run in C.</em></div></div>
+</div>

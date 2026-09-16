@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+{# The whole app is this one page. Every run posts the form and the server
+   renders this template again, with the result's values passed in as template
+   variables (see render_template in backend/features/*.py). With none passed,
+   it is the empty page.
+
+   The pieces:
+     partials/sidebar.html         the form: operation radios, controls, run buttons
+     partials/controls/            each operation's sliders and selects
+     partials/preview.html         the picked image, before anything is run
+     partials/conv_viz.html        the animated blur (static/js/conv-viz.js)
+     partials/live_adjust.html     live brightness / channels (static/js/adjust.js)
+     partials/results/             one file per operation's result
+     partials/method/              one file per operation's call flow and equations #}
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Image Processing Lab</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {# the one style value only the server knows: the preview is sized to the
+       same cap the backend shrinks images to (MAX_DIM in backend/common/limits.py) #}
+    <style>:root { --maxdim: {{ MAX_DIM | default(500) }}px; }</style>
+</head>
+
+<body>
+    {# applied before anything paints, so a hidden rail never flashes open #}
+    <script>try { if (localStorage.getItem('rail') === 'off') document.body.dataset.rail = 'off'; } catch (e) { }</script>
+
+    {# --- the page's state, worked out from which result variable was passed ---
+       active   the operation that produced this page (checks its radio, picks
+                its result and method files); blur when nothing has run yet
+       result   our output image, or nothing on the empty page
+       ks, kk, cut, amt   slider values to restore, with their defaults #}
+    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'compress' if compressed else 'brightness' if brightened else 'channels' if shifted else 'blur' %}
+    {% set ks = ksize | string if ksize else '5' %}
+    {% set kk = kernel_kind or 'box' %}
+    {% set cut = cutoff or edge_cutoff or '15' %}
+    {% set amt = amount or '1' %}
+    {% set result = blurred or sharpened or edges or denoised or compressed or brightened or shifted %}
+
+    <div class="app">
+
+        {% include 'partials/sidebar.html' %}
+
+        <main class="canvas">
+
+            {% if error %}
+            <p class="note"><span>Error</span> &nbsp; {{ error }}</p>
+            {% endif %}
+
+            {# shown and hidden by the scripts, so they are always in the page #}
+            {% include 'partials/preview.html' %}
+            {% include 'partials/conv_viz.html' %}
+            {% include 'partials/live_adjust.html' %}
+
+            {% if result %}
+
+            {% include 'partials/results/' ~ active ~ '.html' %}
+            {% include 'partials/method/panel.html' %}
+
+            {% elif not error %}
+
+            <div class="empty" id="empty">
+                <p><b>Blur</b> &nbsp;&middot;&nbsp; <b>Sharpen</b> &nbsp;&middot;&nbsp; <b>Edges</b> &nbsp;&middot;&nbsp; <b>Denoise</b> &nbsp;&middot;&nbsp; <b>Compress</b> &nbsp;&middot;&nbsp; <b>Brightness</b> &nbsp;&middot;&nbsp; <b>Channels</b></p>
+                <p>Choose an image and run an operation</p>
+            </div>
+
+            {% endif %}
+
+        </main>
+    </div>
+
+    {# full-screen view of one image, opened by clicking a plate (viewer.js) #}
+    <div class="viewer" id="viewer">
+        <span class="viewer__cap" id="viewer-cap"></span>
+        <img id="viewer-img" alt="">
+    </div>
+
+    {# Order matters. These run at the end of <body>, once the elements exist.
+       source-image.js puts the kept file back on DOMContentLoaded, and by then
+       conv-viz.js and adjust.js have to be listening for its change event. #}
+    <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/source-image.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
+    <script>window.MAX_DIM = {{ MAX_DIM | default(500) }};   /* read by conv-viz.js and adjust.js */</script>
+    <script src="{{ url_for('static', filename='js/toggles.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/method-panel.js') }}"></script>
+    {% if result %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+          integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+            integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+    {% endif %}
+    <script src="{{ url_for('static', filename='js/conv-viz.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/adjust.js') }}"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,94 @@
+{# Blur (backend/features/blur.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                      <i>features/blur.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                   <i>common/uploads.py</i>
+ │   └─ Image.open → convert("RGB") → thumbnail
+ ├─ <b>make_kernel</b>(kind, k, angle)         ①
+ │   └─ {% if kernel_kind == 'gaussian' %}<b>gaussian_kernel</b>(k)  · σ = k/6{% elif kernel_kind == 'disk' %}<b>disk_kernel</b>(k){% elif kernel_kind == 'motion' %}<b>motion_kernel</b>(k, {{ angle }}°){% else %}<b>box_kernel</b>(k){% endif %}
+ ├─ <b>blur_image</b>(source, kernel)
+ │   └─ for c in (R, G, B):
+ │       └─ <b>convolve2d</b>(channel, kernel)
+ │           ├─ kernel[::-1, ::-1]      ②
+ │           ├─ np.pad(…, mode="edge")  ③
+ │           └─ four nested loops       ④
+ ├─ np.clip(…).astype(np.uint8)         ⑤
+ └─ <b>library_blur</b>(img, source, …)            <i>baseline</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    {# each step: the maths as TeX (typeset by KaTeX), then the
+       line of source that computes it, then a note. The code
+       blocks sit at column 0 because <pre> keeps indentation. #}
+                        <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+{% if kernel_kind == 'gaussian' %}
+                            <div class="tex">K[i,j] = \frac{e^{-(i^2 + j^2)/2\sigma^2}}{\sum_{i',j'} e^{-(i'^2 + j'^2)/2\sigma^2}}, \qquad \sigma = \frac{k}{6} = {{ sigma }}, \quad i, j \in [-r, r]</div>
+<pre class="code" data-lang="python">def gaussian_kernel(size):
+    sigma = size / 6.0
+    r = size // 2
+    d = np.arange(size) - r
+    g = np.exp(-(d[:, None] ** 2 + d[None, :] ** 2) / (2.0 * sigma ** 2))
+    total = 0.0
+    for v in g.flat:
+        total += v
+    return g / total</pre>
+        <em>A sampled Gaussian, normalised to sum to 1. With σ = k/6 the kernel spans ±3σ, past which the weights are under 1% of the centre, so the size slider alone sets the strength.</em></div></div>
+{% elif kernel_kind == 'disk' %}
+        <div class="tex">K[i,j] = \frac{[\, i^2 + j^2 \le r^2 \,]}{\big|\{ (i', j') : i'^2 + j'^2 \le r^2 \}\big|}, \qquad r = \lfloor k/2 \rfloor</div>
+<pre class="code" data-lang="python">def disk_kernel(size):
+    r = size // 2
+    d = np.arange(size) - r
+    inside = (d[:, None] ** 2 + d[None, :] ** 2) &lt;= r * r
+    return inside / float(np.count_nonzero(inside))</pre>
+        <em>A flat disc: equal weight inside radius r, zero outside. It is what an out-of-focus lens does to a point of light, which is why this is the lens blur.</em></div></div>
+{% elif kernel_kind == 'motion' %}
+        <div class="tex">K\big[\, r - \operatorname{round}(t \sin\theta),\ r + \operatorname{round}(t \cos\theta) \,\big] = \frac{1}{n}, \qquad t = -r, \dots, r, \quad \theta = {{ angle }}^\circ</div>
+<pre class="code" data-lang="python">def motion_kernel(size, angle):
+    r = size // 2
+    theta = angle * np.pi / 180.0
+    kernel = np.zeros((size, size), dtype=np.float64)
+    for t in range(-r, r + 1):
+        x = int(np.floor(r + t * np.cos(theta) + 0.5 + 1e-9))
+        y = int(np.floor(r - t * np.sin(theta) + 0.5 + 1e-9))
+        kernel[y, x] = 1.0
+    return kernel / np.count_nonzero(kernel)</pre>
+        <em>A line of equal weights through the centre, n cells long: what a camera moving in a straight line during the exposure does to every point. Rows run downwards, hence the minus on the sine.</em></div></div>
+{% else %}
+        <div class="tex">K[i,j] = \frac{1}{k^2}</div>
+<pre class="code" data-lang="python">def box_kernel(size):
+    return np.ones((size, size), dtype=np.float64) / (size * size)</pre>
+        <em>Box kernel. Every weight equal, and summing to 1 so the average brightness is unchanged.</em></div></div>
+{% endif %}
+    {% if kernel_rows %}
+    <div class="eq"><span class="eq__n">K</span><div class="eq__body">
+<pre class="code no-hl" data-lang="weights">{% for row in kernel_rows %}{{ row | join('  ') }}{{ '\n' if not loop.last }}{% endfor %}</pre>
+        <em>The weights this run used, {{ ksize }} × {{ ksize }}, before the flip.</em></div></div>
+    {% endif %}
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\tilde{K}[i,j] = K[\,k-1-i,\ k-1-j\,]</div>
+<pre class="code" data-lang="python">kernel = kernel[::-1, ::-1]</pre>
+        <em>The flip is what makes this convolution rather than correlation. Box, Gaussian and circular kernels are symmetric through their centre, so for them it changes nothing; a motion line whose points fall exactly half-way between cells is the one case where it actually moves.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\begin{aligned} \mathrm{pad}[y,x] &amp;= \mathrm{src}\big[\operatorname{clamp}(y-p,\,0,\,H-1),\ \operatorname{clamp}(x-p,\,0,\,W-1)\big] \\ p &amp;= \lfloor k/2 \rfloor \end{aligned}</div>
+<pre class="code" data-lang="python">p_height, p_width = k_height // 2, k_width // 2
+padded = np.pad(channel, ((p_height, p_height), (p_width, p_width)), mode="edge")</pre>
+        <em>Replicating the border keeps the output the same size as the input.</em></div></div>
+    <div class="eq"><span class="eq__n">④</span><div class="eq__body">
+        <div class="tex">\mathrm{out}[y,x] = \sum_{k_y=0}^{k-1} \sum_{k_x=0}^{k-1} \mathrm{pad}[y+k_y,\ x+k_x] \cdot \tilde{K}[k_y,k_x]</div>
+<pre class="code" data-lang="python">for y in range(h):
+    for x in range(w):
+        total = 0.0
+        for ky in range(k_height):
+            for kx in range(k_width):
+                total += padded[y + ky, x + kx] * kernel[ky, kx]
+        out[y, x] = total</pre>
+        <em>One multiply-accumulate per kernel cell, per output pixel, per channel. Cost is O(H·W·k²) — which is why the times climb with k.</em></div></div>
+    <div class="eq"><span class="eq__n">⑤</span><div class="eq__body">
+        <div class="tex">g[y,x] = \big\lfloor \operatorname{clip}(\mathrm{out}[y,x],\ 0,\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">blurred = np.clip(blurred, 0, 255).astype(np.uint8)</pre>
+        <em>The floor is <code>astype</code>, which truncates rather than rounds.{% if lib_name == 'SciPy' %} SciPy's float result is truncated the same way, so this is not a source of difference here.{% else %} That is the whole of the difference from Pillow.{% endif %}</em></div></div>
+</div>

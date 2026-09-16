@@ -1,0 +1,60 @@
+{# Denoise (backend/features/denoise.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                     <i>features/denoise.py</i>
+ ├─ <b>open_image</b>(file, 256)                  <i>common/uploads.py</i>
+ ├─ <b>add_noise</b>(clean, kind, amount)     ①
+ ├─ <b>denoise_image</b>(noisy, filter, …)
+ │   ├─ <b>pad_to_pow2</b>(noisy)             ②   <i>common/fourier_2d.py</i>
+ │   ├─ <b>fft2</b>(<b>luma</b>(padded))             ③   <i>common/fourier_2d.py</i>
+ │   │   └─ <b>FFTTransformer.transform</b>   ④   <i>backend/transforms.py</i>
+ │   │          · every row, then every column
+ │   ├─ <b>shift</b>(…)  · DC to the centre       <i>common/fourier_2d.py</i>
+ │   ├─ <b>build_mask</b> → <b>mask_{{ filt }}</b>(…){{ ' ' * (8 - filt|length) }}  ⑤
+ │   └─ <b>filter_channels</b>(noisy, mask)   ⑥
+ │       └─ per channel:
+ │          fft2 → shift → ×M → unshift
+ │               → <b>ifft2</b> → real        ⑦
+ ├─ <b>numpy_filter</b>(noisy, mask)              <i>baseline</i>
+ └─ <b>psnr</b>(clean, noisy / cleaned)       dB  <i>common/metrics.py</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div>
+        <code>n(x,y) = A · sin( 2π( f<sub>x</sub>·x/W + f<sub>y</sub>·y/H ) )&nbsp;&nbsp;<span class="eq__or">and / or</span>&nbsp;&nbsp; 𝒩(0, σ²)</code>
+        <em>A sinusoid is a handful of points in the spectrum. Gaussian grain is spread evenly over all of it — which is exactly why one is removable and the other is not.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div>
+        <code>reflect-pad to M, N = next_power_of_two(H), next_power_of_two(W)</code>
+        <em>Radix-2 needs a power of two. Reflecting rather than zero-filling avoids a hard edge, which would be a step, and a step is broadband — it would scatter energy over the whole spectrum and bury the peaks.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div>
+        <code>X[u,v] = <span class="sum">Σ</span><sub>m</sub> e<sup>−2πi·um/M</sup> [ <span class="sum">Σ</span><sub>n</sub> x[m,n] · e<sup>−2πi·vn/N</sup> ]</code>
+        <em>The 2D transform is separable: the bracket is a transform of one row, and the outer sum is then a transform down each column of that result.</em></div></div>
+    <div class="eq"><span class="eq__n">④</span><div>
+        <code>X[k] = E[k] + W<sub>N</sub><sup>k</sup>·O[k],&nbsp;&nbsp; X[k+N/2] = E[k] − W<sub>N</sub><sup>k</sup>·O[k],&nbsp;&nbsp; W<sub>N</sub> = e<sup>−2πi/N</sup></code>
+        <em>The radix-2 butterfly. Splitting even from odd indices turns O(N²) into O(N log N); the inverse reuses it as <code>conj(transform(conj(X)))/N</code>.</em></div></div>
+    <div class="eq"><span class="eq__n">⑤</span><div>
+{% if filt == 'notch' %}
+        <code>M[u,v] = <span class="sum">Π</span><sub>p</sub> ( 1 − e<sup>−D<sub>p</sub>²/2σ²</sup> ),&nbsp;&nbsp; D<sub>p</sub> = distance to peak p</code>
+        <em>A hole at each detected peak. A peak counts as noise when it exceeds 4× the 99.9th percentile of the rest of the spectrum — measured, a real sinusoid reaches about 13× and pure grain only 1.8×.</em>
+{% elif filt == 'gaussian' %}
+        <code>M[u,v] = e<sup>−D(u,v)² / 2σ²</sup>,&nbsp;&nbsp; D = √((u−N/2)² + (v−M/2)²)</code>
+        <em>Fades out with distance from the centre instead of cutting. No ringing, but everything fine gets attenuated.</em>
+{% else %}
+        <code>M[u,v] = [ D(u,v) ≤ D₀ ]</code>
+        <em>A hard circle. The sharp edge in frequency is a sinc in the image, which is where the ringing around edges comes from.</em>
+{% endif %}
+    </div></div>
+    <div class="eq"><span class="eq__n">⑥</span><div>
+        <code>X<sub>clean</sub>[u,v] = X<sub>noisy</sub>[u,v] · M[u,v]</code>
+        <em>Filtering is a single multiply in the frequency domain — the same operation that would be an expensive convolution in the image domain.</em></div></div>
+    <div class="eq"><span class="eq__n">⑦</span><div>
+        <code>x[m,n] = (1/MN) <span class="sum">Σ</span><sub>u</sub> <span class="sum">Σ</span><sub>v</sub> X[u,v] · e<sup>+2πi(um/M + vn/N)</sup></code>
+        <em>Back to the image, and the imaginary part is discarded — it is round-off, since the input was real.</em></div></div>
+    <div class="eq"><span class="eq__n">dB</span><div>
+        <code>PSNR = 10 · log₁₀( 1 / MSE ),&nbsp;&nbsp; MSE = mean( (a − b)² )</code>
+        <em>Reported against the clean original, so the two figures above say how much of the damage was undone. Higher is better; +6 dB is roughly halving the error.</em></div></div>
+</div>

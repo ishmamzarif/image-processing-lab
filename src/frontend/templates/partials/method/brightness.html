@@ -1,0 +1,29 @@
+{# Brightness (backend/features/brightness.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                <i>features/brightness.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})             <i>common/uploads.py</i>
+ ├─ <b>brighten_image</b>(source, g)
+ │   └─ for c in (R, G, B):
+ │       └─ <b>brighten</b>(channel, g)
+ │           └─ two nested loops  ①
+ ├─ np.clip(…).astype(np.uint8)   ②
+ └─ <b>library_brightness</b>(img, g)        <i>baseline</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">\mathrm{out}_c[y,x] = g \cdot \mathrm{src}_c[y,x], \qquad g = {{ gain }}, \quad c \in \{R, G, B\}</div>
+<pre class="code" data-lang="python">for y in range(h):
+    for x in range(w):
+        out[y, x] = channel[y, x] * gain</pre>
+        <em>A point operation: each output pixel depends on its own input pixel and nothing else, so there is no neighbourhood, no padding and no kernel. One multiply per value, O(H·W), against the blur's O(H·W·k²). Every channel is scaled by the same g, so the ratios between them, and with them the hue, hold until a channel clips.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\mathrm{dst}_c[y,x] = \big\lfloor \min(\mathrm{out}_c[y,x],\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">brightened = np.clip(brightened, 0, 255).astype(np.uint8)</pre>
+        <em>{% if clipped %}{{ clipped }}% of the values went past 255 and were flattened to it. That is lost for good: darkening afterwards gives a flat grey, not the detail back. {% endif %}The floor is <code>astype</code>, which truncates, and so does Pillow.</em></div></div>
+</div>

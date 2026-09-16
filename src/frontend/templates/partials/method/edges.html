@@ -1,0 +1,33 @@
+{# Edge detection (backend/features/edges.py). The transform steps are shared with sharpen, in cft_equations.html. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                      <i>features/edges.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                   <i>common/uploads.py</i>
+ ├─ <b>detect_edges</b>(original, D₀)
+ │   ├─ <b>to_grayscale</b>(rgb)               ①
+ │   └─ <b>edge_map</b>(gray, D₀)
+ │       ├─ <b>high_pass_detail</b>(gray, D₀)      <i>common/continuous_ft.py</i>
+ │       │   ├─ <b>spatial_axes</b>(H, W)      ②
+ │       │   ├─ <b>frequency_axes</b>(x, y)    ③
+ │       │   ├─ <b>compute_cft</b>(…)          ④
+ │       │   ├─ <b>high_pass</b>(re, im, D₀)   ⑤
+ │       │   └─ <b>reconstruct</b>(…)          ⑥
+ │       └─ 1 − |detail| / peak         ⑦
+ ├─ np.clip(… · 255).astype(np.uint8)
+ └─ <b>library_edges</b>(img)                      <i>baseline</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div>
+        <code>L = 0.299·R + 0.587·G + 0.114·B,&nbsp;&nbsp; L ← L / max(L)</code>
+        <em>ITU-R 601-2 luma, then scaled to 0…1.</em></div></div>
+{% set cft_steps = ['②', '③', '④', '⑤', '⑥'] %}
+{% include 'partials/method/cft_equations.html' %}
+    <div class="eq"><span class="eq__n">⑦</span><div>
+        <code>E = |detail| / max|detail|,&nbsp;&nbsp; out = 1 − E</code>
+        <em>Magnitude, normalised, then inverted so edges are dark on white.</em></div></div>
+</div>

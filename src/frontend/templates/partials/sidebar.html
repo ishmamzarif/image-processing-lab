@@ -1,0 +1,79 @@
+{# The sidebar: one form for every operation.
+
+   Each run button posts the whole form to its own URL (formaction), and the
+   backend reads only the fields it needs. Which controls and buttons show is
+   decided in CSS by which operation radio is checked, so the hidden fields are
+   still in the form and still submitted.
+
+   Field names must match the request.form keys in backend/features/*.py. #}
+
+{# (id, name shown, small note, run button text). id is the radio's value, the
+   URL the button posts to, and the suffix of its CSS classes. #}
+{% set operations = [
+    ('blur',       'Blur',       'convolution',   'Apply blur'),
+    ('sharpen',    'Sharpen',    'cft high-pass', 'Apply sharpen'),
+    ('edges',      'Edges',      'cft high-pass', 'Detect edges'),
+    ('denoise',    'Denoise',    'fft notch',     'Denoise'),
+    ('compress',   'Compress',   'fft top-k',     'Compress'),
+    ('brightness', 'Brightness', 'point op',      'Apply brightness'),
+    ('channels',   'Channels',   'rgb offsets',   'Apply channels'),
+] %}
+
+<button type="button" class="rail-toggle" id="rail-toggle" aria-controls="rail"
+        aria-expanded="true" aria-label="Hide sidebar" title="Hide sidebar">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+        <rect class="rail-toggle__pane" x="1.5" y="2.5" width="4.5" height="11" />
+        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" />
+        <line x1="6" y1="2.5" x2="6" y2="13.5" stroke="currentColor" />
+    </svg>
+</button>
+
+<form class="rail" id="rail" data-kernel="{{ kk }}" method="POST" action="/blur" enctype="multipart/form-data">
+
+    <div class="rail__head">
+        <h1 class="wordmark">Image Processing<span>Laboratory</span></h1>
+    </div>
+
+    <div class="sect file">
+        <span class="label">Source <button type="button" class="file__reset" id="image-reset" hidden>Reset</button></span>
+        <input type="file" id="image" name="image" accept="image/*" required>
+        <label class="file__btn" for="image">
+            <span class="file__name" id="filename">No file chosen</span>
+            <span class="file__plus">+</span>
+        </label>
+        <p class="file__hint">{{ MAX_DIM | default(500) }} px max &middot; kept between runs</p>
+    </div>
+
+    <div class="ops">
+        <span class="label">Operation</span>
+
+        {% for id, name, note, _ in operations %}
+        <div class="op">
+            <input type="radio" name="op" id="op-{{ id }}" value="{{ id }}" {% if active==id %}checked{% endif %}>
+            <label class="op__row" for="op-{{ id }}">
+                <span class="op__name">{{ name }}</span>
+                <span class="op__note">{{ note }}</span>
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# The controls of every operation, in this order. Keep it: .field:last-child
+       in the CSS depends on channels coming last. #}
+    <div class="sect">
+        {% include 'partials/controls/blur.html' %}
+        {% include 'partials/controls/cutoff.html' %}
+        {% include 'partials/controls/denoise.html' %}
+        {% include 'partials/controls/sharpen.html' %}
+        {% include 'partials/controls/compress.html' %}
+        {% include 'partials/controls/brightness.html' %}
+        {% include 'partials/controls/channels.html' %}
+    </div>
+
+    <div class="run">
+        {% for id, _, _, button in operations %}
+        <button type="submit" class="run-{{ id }}" formaction="/{{ id }}">{{ button }}</button>
+        {% endfor %}
+    </div>
+
+</form>

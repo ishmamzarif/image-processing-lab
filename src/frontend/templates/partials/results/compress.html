@@ -1,0 +1,123 @@
+<section id="result">
+    <div class="meta">
+        <b>Compress</b>
+        <i>&middot;</i> fft top-k, {{ kept }}% of the spectrum kept
+        <i>&middot;</i> {{ bytes_ours }}, {{ ratio }}&times; smaller
+        <i>&middot;</i> {{ size | replace(' x ', ' × ') }}
+        <i>&middot;</i> <u>{{ elapsed }} s</u>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Original</span>
+                <span class="conv__sub">{{ bytes_raw }}</span>
+            </div>
+            <div class="plate__well" data-cap="Original">
+                <img src="{{ original }}" alt="Original image">
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Decompressed</span>
+                <span class="conv__sub">{{ bytes_ours }}{% if psnr_ours %} &middot; {{ psnr_ours }} dB{% endif %}</span>
+                <a class="save" href="{{ compressed }}" download="compressed-k{{ keep }}.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Decompressed">
+                <img src="{{ compressed }}" alt="Image after compression and decompression">
+            </div>
+        </div>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Spectrum</span>
+                <span class="conv__sub">log |X| of luma, centred &middot; {{ spec_size }}</span>
+            </div>
+            <div class="plate__well" data-cap="Spectrum — {{ spec_size }}">
+                <img src="{{ spectrum }}" alt="Luma spectrum, with the discarded coefficients tinted">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        Grey is what was kept, blue what was thrown away: {{ stored }} coefficient
+        pairs survive, and they crowd the centre, because that is where a photo
+        keeps its energy. Encoding took {{ elapsed_enc }} s and decoding
+        {{ elapsed_dec }} s, both on the hand-written FFT.
+    </p>
+
+    {% if library %}
+    {# --- JPEG at about the same size. A different method, so it is
+           compared by size and error, not pixel for pixel. --- #}
+    <div class="meta cmp__head">
+        <b>Library</b>
+        <i>&middot;</i> Pillow JPEG, quality {{ jpeg_q }}
+        <i>&middot;</i> {{ bytes_lib }}
+        <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                <a class="save" href="{{ library }}" download="compressed-jpeg-q{{ jpeg_q }}.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                <img src="{{ library }}" alt="The same image saved as JPEG">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        {% if jpeg_fit == 'ceiling' %}
+        At this setting our file outgrows anything JPEG will make: even at quality
+        100 it comes to {{ bytes_lib }} against our {{ bytes_ours }}, and it is still
+        the closer picture. So these two are not at equal size, and JPEG is ahead
+        on both counts.
+        {% elif jpeg_fit == 'floor' %}
+        Even at quality 1 JPEG needs {{ bytes_lib }}, more than our {{ bytes_ours }}.
+        Part of that is its headers and tables, about 600 bytes, which our
+        payload-only figure does not carry, so these two are not at equal size.
+        {% else %}
+        Not the same algorithm: JPEG transforms 8&times;8 blocks with a cosine
+        transform, quantises each coefficient coarsely and entropy-codes the
+        result. Its quality was searched until the file came out about the same
+        size as ours, so the error figures below compare like with like &mdash;
+        and the gap is what quantisation and entropy coding buy.
+        {% endif %}
+    </p>
+    {% endif %}
+
+    {# --- the numbers side by side, at the bottom of the result --- #}
+    <div class="meta cmp__head">
+        <b>Stats</b> <i>&middot;</i> size, loss and quality
+    </div>
+
+    <div class="stats-wrap">
+        <table class="stats">
+            <thead>
+                <tr><th></th><th>Original</th><th>FFT top-k</th><th>JPEG q{{ jpeg_q }}</th></tr>
+            </thead>
+            <tbody>
+                <tr><th>Size</th><td>{{ bytes_raw }}</td><td class="ours">{{ bytes_ours }}</td><td>{{ bytes_lib }}</td></tr>
+                <tr><th>Ratio</th><td>1&times;</td><td class="ours">{{ ratio }}&times;</td><td>{{ ratio_lib }}&times;</td></tr>
+                <tr><th>Size saved</th><td>&mdash;</td><td class="ours">{{ saved_ours }}%</td><td>{{ saved_lib }}%</td></tr>
+                <tr><th>Loss</th><td>&mdash;</td><td class="ours">{{ loss_ours }}%</td><td>{{ loss_lib }}%</td></tr>
+                <tr><th>Quality</th><td>&mdash;</td><td class="ours">{{ quality_ours }}%</td><td>{{ quality_lib }}%</td></tr>
+                <tr><th>PSNR</th><td>&mdash;</td><td class="ours">{{ psnr_ours or '∞' }} dB</td><td>{{ psnr_lib or '∞' }} dB</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p class="cmp__note">
+        Size is raw 8-bit RGB for the original, the stored positions and values for
+        ours, and the whole file for JPEG. Loss is the average error of a channel
+        value as a share of the full 0&ndash;255 range, and quality is 100 minus
+        that. It reads gently &mdash; a few percent can already be visible ringing
+        &mdash; so PSNR is given too: the same error on a log scale, where every
+        6&nbsp;dB is roughly half the error.
+    </p>
+</section>
