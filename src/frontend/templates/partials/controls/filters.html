@@ -1,0 +1,49 @@
+{# Filters: which filter, then that filter's one slider.
+
+   All five sliders are always in the form; CSS shows only the chosen filter's,
+   using data-filter-kind on the form (set here by the server, and kept in step
+   with the select by sidebar.js). The ranges match FILTERS in
+   backend/features/filters.py, which clamps to them. #}
+
+{% set fk = filter_kind or 'grayscale' %}
+
+<div class="field f-fkind">
+    <label class="label" for="filter_kind">Filter</label>
+    <select name="filter_kind" id="filter_kind">
+        <option value="grayscale" {% if fk=='grayscale' %}selected{% endif %}>Grayscale</option>
+        <option value="invert" {% if fk=='invert' %}selected{% endif %}>Invert</option>
+        <option value="black_and_white" {% if fk=='black_and_white' %}selected{% endif %}>Black &amp; white</option>
+        <option value="pixelate" {% if fk=='pixelate' %}selected{% endif %}>Pixelate</option>
+        <option value="vintage" {% if fk=='vintage' %}selected{% endif %}>Vintage</option>
+    </select>
+</div>
+
+<div class="field f-gray">
+    <label class="label" for="gray_amount">Amount <b class="val" id="v-gray_amount" aria-hidden="true"></b></label>
+    <input type="range" name="gray_amount" id="gray_amount"
+           min="0" max="1" step="0.05" value="{{ gray_amount or '1' }}">
+</div>
+
+<div class="field f-invert">
+    <label class="label" for="invert_amount">Amount <b class="val" id="v-invert_amount" aria-hidden="true"></b></label>
+    <input type="range" name="invert_amount" id="invert_amount"
+           min="0" max="1" step="0.05" value="{{ invert_amount or '1' }}">
+</div>
+
+<div class="field f-threshold">
+    <label class="label" for="threshold">Threshold <b class="val" id="v-threshold" aria-hidden="true"></b></label>
+    <input type="range" name="threshold" id="threshold"
+           min="0" max="255" step="1" value="{{ threshold or '128' }}">
+</div>
+
+<div class="field f-block">
+    <label class="label" for="block">Block size <b class="val" id="v-block" aria-hidden="true"></b></label>
+    <input type="range" name="block" id="block"
+           min="2" max="32" step="1" value="{{ block or '8' }}">
+</div>
+
+<div class="field f-vintage">
+    <label class="label" for="vintage_amount">Amount <b class="val" id="v-vintage_amount" aria-hidden="true"></b></label>
+    <input type="range" name="vintage_amount" id="vintage_amount"
+           min="0" max="1" step="0.05" value="{{ vintage_amount or '1' }}">
+</div>

@@ -9,9 +9,10 @@
    The pieces:
      partials/sidebar.html         the form: operation radios, controls, run buttons
      partials/controls/            each operation's sliders and selects
+     partials/camera.html          the live webcam view, for taking the source photo
      partials/preview.html         the picked image, before anything is run
      partials/conv_viz.html        the animated blur (static/js/conv-viz.js)
-     partials/live_adjust.html     live brightness / channels (static/js/adjust.js)
+     partials/live_adjust.html     live brightness / channels / filters (static/js/adjust.js)
      partials/results/             one file per operation's result
      partials/method/              one file per operation's call flow and equations #}
 
@@ -39,12 +40,12 @@
                 its result and method files); blur when nothing has run yet
        result   our output image, or nothing on the empty page
        ks, kk, cut, amt   slider values to restore, with their defaults #}
-    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'compress' if compressed else 'brightness' if brightened else 'channels' if shifted else 'blur' %}
+    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'compress' if compressed else 'brightness' if brightened else 'channels' if shifted else 'filters' if filtered else 'resize' if resized else 'blur' %}
     {% set ks = ksize | string if ksize else '5' %}
     {% set kk = kernel_kind or 'box' %}
     {% set cut = cutoff or edge_cutoff or '15' %}
     {% set amt = amount or '1' %}
-    {% set result = blurred or sharpened or edges or denoised or compressed or brightened or shifted %}
+    {% set result = blurred or sharpened or edges or denoised or compressed or brightened or shifted or filtered or resized %}
 
     <div class="app">
 
@@ -57,6 +58,7 @@
             {% endif %}
 
             {# shown and hidden by the scripts, so they are always in the page #}
+            {% include 'partials/camera.html' %}
             {% include 'partials/preview.html' %}
             {% include 'partials/conv_viz.html' %}
             {% include 'partials/live_adjust.html' %}
@@ -89,6 +91,7 @@
        conv-viz.js and adjust.js have to be listening for its change event. #}
     <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
     <script src="{{ url_for('static', filename='js/source-image.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
     <script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
     <script>window.MAX_DIM = {{ MAX_DIM | default(500) }};   /* read by conv-viz.js and adjust.js */</script>
     <script src="{{ url_for('static', filename='js/toggles.js') }}"></script>

@@ -33,6 +33,17 @@
     readout('green', signed);
     readout('blue', signed);
 
+    // the filters' sliders: amounts as a percentage, then threshold and block size
+    function percent(v) { return Math.round(v * 100) + '%'; }
+    readout('gray_amount', percent);
+    readout('invert_amount', percent);
+    readout('vintage_amount', percent);
+    readout('threshold', function (v) { return v; });
+    readout('block', function (v) { return v + ' px'; });
+
+    // resize: the scale as a percentage
+    readout('scale', function (v) { return v + '%'; });
+
     // CSS cannot see a select's value, so it is mirrored onto the form
     // and the notch / low-pass controls key off that
     var filterSel = document.getElementById('filter');
@@ -45,6 +56,13 @@
     var syncKernel = function () { form.dataset.kernel = kernelSel.value; };
     kernelSel.addEventListener('change', syncKernel);
     syncKernel();
+
+    // and for the filter, which decides which of the five filter sliders shows
+    // (data-filter-kind on the form)
+    var filterKindSel = document.getElementById('filter_kind');
+    var syncFilterKind = function () { form.dataset.filterKind = filterKindSel.value; };
+    filterKindSel.addEventListener('change', syncFilterKind);
+    syncFilterKind();
 
     // hold the button while the server works
     form.addEventListener('submit', function (e) {

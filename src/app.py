@@ -19,7 +19,7 @@ from flask import Flask, render_template
 
 from backend.common.limits import MAX_DIM
 from backend.common.uploads import UploadError
-from backend.features import blur, brightness, channels, compress, denoise, edges, sharpen
+from backend.features import blur, brightness, channels, compress, denoise, edges, filters, resize, sharpen
 
 app = Flask(
     __name__,
@@ -47,6 +47,8 @@ FEATURES = {
     "/compress": compress,
     "/brightness": brightness,
     "/channels": channels,
+    "/filters": filters,
+    "/resize": resize,
 }
 
 for url, feature in FEATURES.items():

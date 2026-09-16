@@ -299,6 +299,20 @@ body[data-rail="off"] .rail-toggle__pane {
     border-color: var(--ink);
 }
 
+/* "Use camera": a button made to look like the file picker above it */
+.file__camera {
+    width: 100%;
+    margin-top: 8px;
+    color: var(--ink);
+    font-family: var(--font);
+    text-align: left;
+}
+
+.file__camera:focus-visible {
+    border-color: var(--ink);
+    outline: none;
+}
+
 .file__name {
     overflow: hidden;
     white-space: nowrap;
@@ -317,11 +331,6 @@ body[data-rail="off"] .rail-toggle__pane {
     color: var(--muted);
 }
 
-.file__hint {
-    margin: 9px 0 0;
-    font-size: var(--t-small);
-    color: var(--faint);
-}
 
 /* sits on the Source label row, so it borrows the label's type */
 .file__reset {
@@ -485,7 +494,9 @@ body[data-ops="off"] .op:not(:has(input:checked)) {
 .rail:has(#op-denoise:checked) .f-view,
 .rail:has(#op-compress:checked) .f-keep,
 .rail:has(#op-brightness:checked) .f-gain,
-.rail:has(#op-channels:checked) .f-rgb {
+.rail:has(#op-channels:checked) .f-rgb,
+.rail:has(#op-filters:checked) .f-fkind,
+.rail:has(#op-resize:checked) .f-scale {
     display: block;
 }
 
@@ -500,6 +511,16 @@ body[data-ops="off"] .op:not(:has(input:checked)) {
 /* only a motion blur has a direction; data-kernel is set by the server
    and kept in step with the select by the same kind of mirroring */
 .rail:has(#op-blur:checked)[data-kernel="motion"] .f-angle {
+    display: block;
+}
+
+/* each filter has one slider, and only the chosen filter's shows;
+   data-filter-kind is mirrored from the Filter select the same way */
+.rail:has(#op-filters:checked)[data-filter-kind="grayscale"] .f-gray,
+.rail:has(#op-filters:checked)[data-filter-kind="invert"] .f-invert,
+.rail:has(#op-filters:checked)[data-filter-kind="black_and_white"] .f-threshold,
+.rail:has(#op-filters:checked)[data-filter-kind="pixelate"] .f-block,
+.rail:has(#op-filters:checked)[data-filter-kind="vintage"] .f-vintage {
     display: block;
 }
 
@@ -618,7 +639,9 @@ input[type="range"]:focus-visible {
 .rail:has(#op-denoise:checked) .run-denoise,
 .rail:has(#op-compress:checked) .run-compress,
 .rail:has(#op-brightness:checked) .run-brightness,
-.rail:has(#op-channels:checked) .run-channels {
+.rail:has(#op-channels:checked) .run-channels,
+.rail:has(#op-filters:checked) .run-filters,
+.rail:has(#op-resize:checked) .run-resize {
     display: block;
 }
 
@@ -735,7 +758,7 @@ input[type="range"]:focus-visible {
     border-color: var(--line-2);
 }
 
-/* shown at their true size. the backend caps images at 200 px, so any
+/* shown at their true size. the backend caps images at 500 px, so any
    upscale here has to invent pixels: nearest-neighbour looks blocky,
    smooth interpolation looks blurred, and both make the original look
    altered next to the result. no scaling means neither. */
@@ -749,6 +772,13 @@ input[type="range"]:focus-visible {
        so it renders untouched. */
     max-width: var(--maxdim);
     max-height: var(--maxdim);
+}
+
+/* except a resize, whose result is meant to be a different size: it is shown
+   at its true size, only shrunk if it would not fit the column */
+#result[data-op="resize"] .plate__well img {
+    max-width: 100%;
+    max-height: none;
 }
 
 [hidden] {
@@ -1360,8 +1390,8 @@ body[data-viz="on"]:has(#op-blur:checked) .canvas:has(.conv:not([hidden])) .prev
 
 /* ---------- live preview ---------- */
 
-/* The point operations, brightness and channels, are cheap enough to
-   redo in the browser on every movement of a slider, and adjust.js
+/* The per-pixel operations, brightness, channels and filters, are cheap
+   enough to redo in the browser on every movement of a slider, and adjust.js
    draws them here. Like the visualiser it belongs to its own
    operations only. While it is up, the plain preview and any result
    below it, which the slider has made stale, give way; switching to
@@ -1370,16 +1400,59 @@ body[data-viz="on"]:has(#op-blur:checked) .canvas:has(.conv:not([hidden])) .prev
     display: none;
 }
 
-body:has(:is(#op-brightness, #op-channels):checked) .live:not([hidden]) {
+body:has(:is(#op-brightness, #op-channels, #op-filters, #op-resize):checked) .live:not([hidden]) {
     display: block;
 }
 
-body:has(:is(#op-brightness, #op-channels):checked) .canvas:has(.live:not([hidden])) :is(.preview, #result, .recipe) {
+body:has(:is(#op-brightness, #op-channels, #op-filters, #op-resize):checked) .canvas:has(.live:not([hidden])) :is(.preview, #result, .recipe) {
     display: none;
 }
 
 .live canvas {
     display: block;
+    max-width: 100%;   /* an enlarging resize can be wider than the column */
+}
+
+/* ---------- camera ---------- */
+
+/* The live webcam view (partials/camera.html, camera.js). It is shown only
+   while body[data-camera="on"], and then it takes over the canvas: everything
+   else there is hidden. The !important is needed because some of those
+   sections are shown by rules much more specific than this one (the live
+   preview's, for example), and the camera has to win over all of them. */
+.camera {
+    display: none;
+}
+
+body[data-camera="on"] .camera {
+    display: block;
+}
+
+body[data-camera="on"] .canvas > :not(.camera) {
+    display: none !important;
+}
+
+/* flipped left to right, like a mirror; the captured photo is flipped the
+   same way in camera.js, so it matches what was on screen */
+.camera__video {
+    display: block;
+    max-width: 100%;
+    max-height: 70vh;
+    transform: scaleX(-1);
+}
+
+.camera__error {
+    margin: 22px auto 0;
+    max-width: 620px;
+}
+
+.camera__error i {
+    font-style: normal;
+}
+
+.conv__ctl button:disabled {
+    opacity: .4;
+    cursor: default;
 }
 
 @media (max-width: 900px) {

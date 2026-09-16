@@ -5,7 +5,11 @@
    decided in CSS by which operation radio is checked, so the hidden fields are
    still in the form and still submitted.
 
-   Field names must match the request.form keys in backend/features/*.py. #}
+   Field names must match the request.form keys in backend/features/*.py.
+
+   autocomplete="off" stops the browser from putting back the last operation
+   and slider positions on a refresh, so a refresh starts as fresh as a first
+   visit (source-image.js clears the image for the same reason). #}
 
 {# (id, name shown, small note, run button text). id is the radio's value, the
    URL the button posts to, and the suffix of its CSS classes. #}
@@ -17,6 +21,8 @@
     ('compress',   'Compress',   'fft top-k',     'Compress'),
     ('brightness', 'Brightness', 'point op',      'Apply brightness'),
     ('channels',   'Channels',   'rgb offsets',   'Apply channels'),
+    ('filters',    'Filters',    'per pixel',     'Apply filter'),
+    ('resize',     'Resize',     'nearest pixel', 'Apply resize'),
 ] %}
 
 <button type="button" class="rail-toggle" id="rail-toggle" aria-controls="rail"
@@ -28,7 +34,7 @@
     </svg>
 </button>
 
-<form class="rail" id="rail" data-kernel="{{ kk }}" method="POST" action="/blur" enctype="multipart/form-data">
+<form class="rail" id="rail" data-kernel="{{ kk }}" data-filter-kind="{{ filter_kind or 'grayscale' }}" method="POST" action="/blur" enctype="multipart/form-data" autocomplete="off">
 
     <div class="rail__head">
         <h1 class="wordmark">Image Processing<span>Laboratory</span></h1>
@@ -41,7 +47,14 @@
             <span class="file__name" id="filename">No file chosen</span>
             <span class="file__plus">+</span>
         </label>
-        <p class="file__hint">{{ MAX_DIM | default(500) }} px max &middot; kept between runs</p>
+        {# or take a photo with the webcam instead (camera.js, partials/camera.html) #}
+        <button type="button" class="file__btn file__camera" id="camera-open">
+            <span>Use camera</span>
+            <svg class="file__plus" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                <path d="M2 5.5h2.5L6 3.5h4l1.5 2H14v7H2z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
+                <circle cx="8" cy="9" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2" />
+            </svg>
+        </button>
     </div>
 
     {# The list can be collapsed to just the selected operation with the arrow
@@ -80,6 +93,8 @@
         {% include 'partials/controls/sharpen.html' %}
         {% include 'partials/controls/compress.html' %}
         {% include 'partials/controls/brightness.html' %}
+        {% include 'partials/controls/filters.html' %}
+        {% include 'partials/controls/resize.html' %}
         {% include 'partials/controls/channels.html' %}
     </div>
 

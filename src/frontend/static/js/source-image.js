@@ -4,6 +4,12 @@
  * a reload. So the picked File is kept in IndexedDB (database "lab", store
  * "source") and put back into the input when the page loads. The server never
  * knows: it simply receives the same upload again next time.
+ *
+ * It is only put back on the page an Apply button opened. Any other load --
+ * refreshing, a new tab, typing the address -- is a fresh start, exactly like
+ * entering the site for the first time: no image, and the kept copy is
+ * forgotten. Apply leaves a one-time note in sessionStorage to tell the two
+ * apart.
  */
 (function () {
     var input = document.getElementById('image');
@@ -71,9 +77,42 @@
         store('readwrite', function (s) { if (f) s.put(f, 'image'); else s.delete('image'); });
     }
 
+    // Apply leaves this note just before the page goes away. The next page reads
+    // it once and removes it, so only that page carries the image over.
+    var CARRY = 'carry-image';
+
+    document.getElementById('rail').addEventListener('submit', function () {
+        try { sessionStorage.setItem(CARRY, 'yes'); } catch (e) { }
+    });
+
+    // Was this page opened by Apply? If sessionStorage cannot be used at all
+    // (some private windows), carry the image over anyway, as before.
+    function openedByApply() {
+        try {
+            var carry = sessionStorage.getItem(CARRY) === 'yes';
+            sessionStorage.removeItem(CARRY);
+            return carry;
+        } catch (e) {
+            return true;
+        }
+    }
+
+    var carryImage = openedByApply();
+
+    // A result page's address is the Apply URL (/blur, /filters, ...), and
+    // refreshing it would send the form again. Pointing the address back at
+    // the site itself makes a refresh a fresh visit instead.
+    if (location.pathname !== '/') {
+        try { history.replaceState(null, '', '/'); } catch (e) { }
+    }
+
     // after DOMContentLoaded, so that conv-viz.js and adjust.js are listening
     // for the change event too
     document.addEventListener('DOMContentLoaded', function () {
+        if (!carryImage) {
+            keep(null);   // a fresh start: forget the kept copy
+            return;
+        }
         store('readonly', function (s) {
             var get = s.get('image');
             get.onsuccess = function () {

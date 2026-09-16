@@ -1,0 +1,133 @@
+{# Filters (backend/features/filters.py). Only the filter that ran is shown;
+   the circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+{% if filter_kind == 'grayscale' %}
+<pre class="code flow" data-lang="python">view()                                      <i>features/filters.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                   <i>common/uploads.py</i>
+ ├─ <b>grayscale</b>(source, t)
+ │   └─ for y, for x:
+ │       ├─ <b>gray_of</b>(r, g, b)            ①
+ │       └─ for c in (R, G, B): mix     ②
+ ├─ np.clip(…).astype(np.uint8)         ③
+ └─ <b>library_filter</b>(img, kind, setting)      <i>baseline</i></pre>
+{% elif filter_kind == 'invert' %}
+<pre class="code flow" data-lang="python">view()                                      <i>features/filters.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                   <i>common/uploads.py</i>
+ ├─ <b>invert</b>(source, t)
+ │   └─ for y, for x, for c in (R, G, B):
+ │       ├─ opposite = 255 − value      ①
+ │       └─ mix towards opposite        ②
+ ├─ np.clip(…).astype(np.uint8)         ③
+ └─ <b>library_filter</b>(img, kind, setting)      <i>baseline</i></pre>
+{% elif filter_kind == 'black_and_white' %}
+<pre class="code flow" data-lang="python">view()                                      <i>features/filters.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                   <i>common/uploads.py</i>
+ ├─ <b>black_and_white</b>(source, T)
+ │   └─ for y, for x:
+ │       ├─ <b>gray_of</b>(r, g, b)            ①
+ │       └─ 255 if gray ≥ T else 0      ②
+ ├─ np.clip(…).astype(np.uint8)         ③
+ └─ <b>library_filter</b>(img, kind, setting)      <i>baseline</i></pre>
+{% elif filter_kind == 'pixelate' %}
+<pre class="code flow" data-lang="python">view()                                      <i>features/filters.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                   <i>common/uploads.py</i>
+ ├─ <b>pixelate</b>(source, B)
+ │   └─ for each B × B tile:
+ │       ├─ add up its pixels           ①
+ │       └─ paint it with the average   ②
+ ├─ np.clip(…).astype(np.uint8)         ③
+ └─ <b>library_filter</b>(img, kind, setting)      <i>baseline</i></pre>
+{% elif filter_kind == 'vintage' %}
+<pre class="code flow" data-lang="python">view()                                      <i>features/filters.py</i>
+ ├─ <b>open_image</b>(file, {{ MAX_DIM }})                   <i>common/uploads.py</i>
+ ├─ <b>vintage</b>(source, t)
+ │   └─ for y, for x:
+ │       ├─ <b>sepia_of</b>(r, g, b)           ①
+ │       └─ for c in (R, G, B): mix     ②
+ ├─ np.clip(…).astype(np.uint8)         ③
+ └─ <b>library_filter</b>(img, kind, setting)      <i>baseline</i></pre>
+{% endif %}
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+{% if filter_kind == 'grayscale' %}
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">Y = 0.299\,R + 0.587\,G + 0.114\,B</div>
+<pre class="code" data-lang="python">return 0.299 * r + 0.587 * g + 0.114 * b</pre>
+        <em>How bright the pixel looks, as one number. Green counts most and blue least, because that is how sensitive the eye is to each; these are the weights Pillow's <code>convert("L")</code> uses too.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\mathrm{out}_c = \mathrm{in}_c + t\,(Y - \mathrm{in}_c), \qquad t = {{ gray_amount }}</div>
+<pre class="code" data-lang="python">out[y, x, c] = image[y, x, c] + amount * (gray - image[y, x, c])</pre>
+        <em>A straight-line mix between the pixel and its grey: t = 0 leaves it alone, t = 1 makes all three channels equal to Y, and in between the colour fades. Every channel moves towards the same Y, so the brightness stays roughly where it was.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\mathrm{dst}_c[y,x] = \big\lfloor \operatorname{clip}(\mathrm{out}_c[y,x],\ 0,\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">filtered = np.clip(filtered, 0, 255).astype(np.uint8)</pre>
+        <em>The floor is <code>astype</code>, which truncates rather than rounds. </em></div></div>
+{% elif filter_kind == 'invert' %}
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">\bar{v} = 255 - v</div>
+<pre class="code" data-lang="python">opposite = 255 - image[y, x, c]</pre>
+        <em>The opposite end of the channel's range: black becomes white, and a strong red becomes a weak one. Done on all three channels, that turns every colour into its complement.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\mathrm{out}_c = \mathrm{in}_c + t\,(\bar{v}_c - \mathrm{in}_c), \qquad t = {{ invert_amount }}</div>
+<pre class="code" data-lang="python">out[y, x, c] = image[y, x, c] + amount * (opposite - image[y, x, c])</pre>
+        <em>The same mix as the other filters. At t = 0.5 every channel lands on 127.5, which is why a half-inverted picture is flat grey.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\mathrm{dst}_c[y,x] = \big\lfloor \operatorname{clip}(\mathrm{out}_c[y,x],\ 0,\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">filtered = np.clip(filtered, 0, 255).astype(np.uint8)</pre>
+        <em>The floor is <code>astype</code>, which truncates rather than rounds. </em></div></div>
+{% elif filter_kind == 'black_and_white' %}
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">Y = 0.299\,R + 0.587\,G + 0.114\,B</div>
+<pre class="code" data-lang="python">return 0.299 * r + 0.587 * g + 0.114 * b</pre>
+        <em>How bright the pixel looks, as one number. Green counts most and blue least, because that is how sensitive the eye is to each; these are the weights Pillow's <code>convert("L")</code> uses too.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\mathrm{out}[y,x] = \begin{cases} 255 &amp; Y \ge T \\ 0 &amp; Y &lt; T \end{cases}, \qquad T = {{ threshold }}</div>
+<pre class="code" data-lang="python">if gray_of(r, g, b) &gt;= threshold:
+    out[y, x] = 255
+else:
+    out[y, x] = 0</pre>
+        <em>A threshold: every pixel becomes pure white or pure black, on all three channels, so only two colours are left. A lower T turns more of the picture white.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\mathrm{dst}_c[y,x] = \big\lfloor \operatorname{clip}(\mathrm{out}_c[y,x],\ 0,\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">filtered = np.clip(filtered, 0, 255).astype(np.uint8)</pre>
+        <em>The floor is <code>astype</code>, which truncates rather than rounds. Here every value is already 0 or 255, so this changes nothing.</em></div></div>
+{% elif filter_kind == 'pixelate' %}
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">\bar{c}_T = \frac{1}{|T|} \sum_{(y,x) \in T} \mathrm{in}_c[y,x], \qquad T = \text{one tile of up to } {{ block }} \times {{ block }}</div>
+<pre class="code" data-lang="python">for y in range(top, bottom):
+    for x in range(left, right):
+        for c in range(3):
+            total[c] += image[y, x, c]
+count = (bottom - top) * (right - left)</pre>
+        <em>The image is cut into square tiles, starting at the top-left. Each tile's pixels are added up channel by channel and divided by how many there are. Tiles on the right and bottom edges are smaller when the size does not divide evenly, and they are averaged over the pixels they actually have.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\mathrm{out}_c[y,x] = \bar{c}_T \quad \text{for every } (y,x) \in T</div>
+<pre class="code" data-lang="python">out[y, x, c] = total[c] / count</pre>
+        <em>Every pixel in the tile gets the tile's average, so the detail inside a tile is gone and only its overall colour is left. Unlike the other filters, a pixel's new colour depends on its neighbours.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\mathrm{dst}_c[y,x] = \big\lfloor \operatorname{clip}(\mathrm{out}_c[y,x],\ 0,\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">filtered = np.clip(filtered, 0, 255).astype(np.uint8)</pre>
+        <em>The floor is <code>astype</code>, which truncates rather than rounds. </em></div></div>
+{% elif filter_kind == 'vintage' %}
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">\begin{pmatrix} S_R \\ S_G \\ S_B \end{pmatrix} = \min\left(255,\ \begin{pmatrix} 0.393 &amp; 0.769 &amp; 0.189 \\ 0.349 &amp; 0.686 &amp; 0.168 \\ 0.272 &amp; 0.534 &amp; 0.131 \end{pmatrix} \begin{pmatrix} R \\ G \\ B \end{pmatrix} \right)</div>
+<pre class="code" data-lang="python">sepia_r = min(255.0, 0.393 * r + 0.769 * g + 0.189 * b)
+sepia_g = min(255.0, 0.349 * r + 0.686 * g + 0.168 * b)
+sepia_b = min(255.0, 0.272 * r + 0.534 * g + 0.131 * b)</pre>
+        <em>The classic sepia matrix. Each row mixes all three channels, and the rows get smaller from red to blue, so every colour comes out as a warm brown of about the same brightness. The top row adds up to more than 1, so bright pixels can pass 255; each is capped there.</em></div></div>
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\mathrm{out}_c = \mathrm{in}_c + t\,(S_c - \mathrm{in}_c), \qquad t = {{ vintage_amount }}</div>
+<pre class="code" data-lang="python">out[y, x, c] = image[y, x, c] + amount * (sepia[c] - image[y, x, c])</pre>
+        <em>The same mix as grayscale, towards the sepia tone instead of the grey: t = 1 is full sepia, and lower values keep some of the original colour.</em></div></div>
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\mathrm{dst}_c[y,x] = \big\lfloor \operatorname{clip}(\mathrm{out}_c[y,x],\ 0,\ 255) \big\rfloor</div>
+<pre class="code" data-lang="python">filtered = np.clip(filtered, 0, 255).astype(np.uint8)</pre>
+        <em>The floor is <code>astype</code>, which truncates rather than rounds. </em></div></div>
+{% endif %}
+</div>
