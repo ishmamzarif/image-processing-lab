@@ -493,6 +493,10 @@ body[data-ops="off"] .op:not(:has(input:checked)) {
 .rail:has(#op-denoise:checked) .f-soft,
 .rail:has(#op-denoise:checked) .f-view,
 .rail:has(#op-compress:checked) .f-keep,
+.rail:has(#op-encrypt:checked) .f-scheme,
+.rail:has(#op-encrypt:checked) .f-key,
+.rail:has(#op-decrypt:checked) .f-guess,
+.rail:has(#op-decrypt:checked) .f-hint,
 .rail:has(#op-brightness:checked) .f-gain,
 .rail:has(#op-channels:checked) .f-rgb,
 .rail:has(#op-filters:checked) .f-fkind,
@@ -536,11 +540,39 @@ select {
     cursor: pointer;
 }
 
-select:hover {
+/* the passphrase boxes: a key is typed, not chosen, so Encrypt is the one
+   operation with text fields. Same box as the selects. */
+.text {
+    width: 100%;
+    padding: 9px 10px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: var(--t-ui);
+}
+
+.text::placeholder {
+    color: var(--faint);
+}
+
+/* a line of guidance under a control, where what to do is not obvious
+   from the field alone (Decrypt, whose Source is a ciphertext) */
+.hint {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: var(--t-small);
+    line-height: 1.4;
+}
+
+select:hover,
+.text:hover {
     border-color: var(--ink);
 }
 
-select:focus-visible {
+select:focus-visible,
+.text:focus-visible {
     outline: 1px solid var(--ink);
     outline-offset: 2px;
 }
@@ -638,6 +670,8 @@ input[type="range"]:focus-visible {
 .rail:has(#op-edges:checked) .run-edges,
 .rail:has(#op-denoise:checked) .run-denoise,
 .rail:has(#op-compress:checked) .run-compress,
+.rail:has(#op-encrypt:checked) .run-encrypt,
+.rail:has(#op-decrypt:checked) .run-decrypt,
 .rail:has(#op-brightness:checked) .run-brightness,
 .rail:has(#op-channels:checked) .run-channels,
 .rail:has(#op-filters:checked) .run-filters,

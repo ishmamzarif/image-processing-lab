@@ -5,6 +5,8 @@
     timing.py         timing the two implementations and formatting the numbers for the page
     metrics.py        how close two images are (max difference, PSNR, % loss)
     fourier_2d.py     2D FFT built from transforms.py, plus padding / centring / luma
+    phase_keys.py     the passphrase -> the two masks encrypt and decrypt share
+    cipher_file.py    what a ciphertext looks like as a PNG, both ways
     continuous_ft.py  the continuous Fourier transform that sharpen and edges use
     spectrum.py       drawing a spectrum (and a mask over it) as a picture
 """

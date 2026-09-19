@@ -16,7 +16,7 @@
 
 **where things are ->** </br>
 <code>src/app.py</code> &nbsp; entry point, maps each URL to a feature</br>
-<code>src/backend/features/</code> &nbsp; one file per operation: blur, sharpen, edges, denoise, compress, brightness, channels</br>
+<code>src/backend/features/</code> &nbsp; one file per operation: blur, sharpen, edges, denoise, compress, encrypt, decrypt, brightness, channels, filters, resize</br>
 <code>src/backend/common/</code> &nbsp; helpers shared by the features</br>
 <code>src/backend/transforms.py</code> &nbsp; the hand-written FFT / DFT / NTT</br>
 <code>src/frontend/templates/</code> &nbsp; the page, split into partials</br>

@@ -1,0 +1,20 @@
+{# Encrypt: which cipher, and the passphrase.
+
+   The passphrase is a key, not a setting, so it is not a slider: any string
+   works, and the same string always draws the same masks
+   (backend/common/phase_keys.py). Decrypt has its own box, so a key typed here
+   is not carried over to a page whose whole job is to be told one. #}
+
+<div class="field f-scheme">
+    <label class="label" for="scheme">Cipher</label>
+    <select name="scheme" id="scheme">
+        <option value="drpe" {% if scheme=='drpe' %}selected{% endif %}>Double random phase</option>
+        <option value="phase" {% if scheme=='phase' %}selected{% endif %}>Phase only (real image)</option>
+    </select>
+</div>
+
+<div class="field f-key">
+    <label class="label" for="key">Passphrase</label>
+    <input class="text" type="text" name="key" id="key" spellcheck="false"
+           placeholder="cse220" value="{{ key if encrypted else '' }}">
+</div>

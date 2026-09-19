@@ -19,7 +19,10 @@ from flask import Flask, render_template
 
 from backend.common.limits import MAX_DIM
 from backend.common.uploads import UploadError
-from backend.features import blur, brightness, channels, compress, denoise, edges, filters, resize, sharpen
+from backend.features import (
+    blur, brightness, channels, compress, decrypt, denoise, edges, encrypt, filters, resize,
+    sharpen,
+)
 
 app = Flask(
     __name__,
@@ -45,6 +48,8 @@ FEATURES = {
     "/edges": edges,
     "/denoise": denoise,
     "/compress": compress,
+    "/encrypt": encrypt,
+    "/decrypt": decrypt,
     "/brightness": brightness,
     "/channels": channels,
     "/filters": filters,

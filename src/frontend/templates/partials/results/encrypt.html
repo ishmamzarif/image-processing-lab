@@ -1,0 +1,165 @@
+<section id="result">
+    <div class="meta">
+        <b>Encrypt</b>
+        <i>&middot;</i> {% if real_cipher %}phase-only, real ciphertext{% else %}double random phase{% endif %}
+        <i>&middot;</i> key &ldquo;{{ key }}&rdquo;
+        <i>&middot;</i> {{ size | replace(' x ', ' × ') }}
+        <i>&middot;</i> <u>{{ elapsed }} s</u>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Original</span>
+                <span class="conv__sub">{{ bytes_raw }}</span>
+            </div>
+            <div class="plate__well" data-cap="Original">
+                <img src="{{ original }}" alt="Original image">
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Encrypted</span>
+                <span class="conv__sub">{% if real_cipher %}the ciphertext{% else %}|E|, a view of it{% endif %} &middot; {{ cipher_size }}</span>
+                <a class="save" href="{{ encrypted }}" download="encrypted-{{ scheme }}.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Encrypted">
+                <img src="{{ encrypted }}" alt="The encrypted image">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        {% if real_cipher %}
+        That plate is the ciphertext itself, not a picture of one, and the PNG
+        behind <b>Save png</b> carries the cipher, the stretch and the crop
+        inside it. Save it, switch to <b>Decrypt</b>, choose the file and type
+        the passphrase: it comes back. Type anything else and it does not
+        &mdash; there is no near miss, because the passphrase is hashed before a
+        mask is drawn, so one different character is a different key entirely.
+        {% else %}
+        Careful with this one: the plate is |E|, a picture <em>of</em> the
+        ciphertext. DRPE's output is a complex field, and the phase &mdash; half
+        the information, and the half that carries the structure &mdash; is not
+        in the picture and cannot be got back out of it. Save it and Decrypt
+        will say so rather than pretend. For a ciphertext you can actually
+        reopen, use the phase-only cipher.
+        {% endif %}
+    </p>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Spectrum &mdash; original</span>
+                <span class="conv__sub">log |X| of luma, centred &middot; {{ spec_size }}</span>
+            </div>
+            <div class="plate__well" data-cap="Spectrum of the original — {{ spec_size }}">
+                <img src="{{ spectrum_plain }}" alt="Spectrum of the original image">
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Spectrum &mdash; encrypted</span>
+                <span class="conv__sub">log |X| of luma, centred &middot; {{ spec_size }}</span>
+            </div>
+            <div class="plate__well" data-cap="Spectrum of the ciphertext — {{ spec_size }}">
+                <img src="{{ spectrum }}" alt="Spectrum of the ciphertext">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        {% if real_cipher %}
+        These two plates are the same picture, and that is the point. A phase-only
+        mask multiplies each coefficient by something of magnitude 1, so
+        |F&lbrace;x&rbrace;| comes through untouched: the ciphertext has the
+        plaintext's power spectrum exactly. Everything the spectrum says about the
+        image &mdash; how much texture, at what scale, along which direction
+        &mdash; is still being said out loud, and it is why the correlation figure
+        below does not move either. Autocorrelation is the inverse transform of
+        the power spectrum, so a cipher that leaves one alone leaves the other
+        alone too.
+        {% else %}
+        The bright centre is gone. That is the first mask doing it, not the
+        second: multiplying the <em>image</em> by a random phase spreads its
+        energy evenly across the spectrum before the second mask ever sees it.
+        A mask applied only in the spectrum could not have done this, because
+        |e<sup>i&phi;</sup>| = 1 leaves every magnitude where it was.
+        {% endif %}
+    </p>
+
+    {% if library %}
+    {# --- the identical encryption, run on numpy's FFT instead of ours.
+           Same algorithm, so the numbers measure transforms.py itself. --- #}
+    <div class="meta cmp__head">
+        <b>Library</b>
+        <i>&middot;</i> numpy
+        <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+        {% if speedup %}<i>&middot;</i> {{ speedup }}&times; faster{% endif %}
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                <a class="save" href="{{ library }}" download="encrypted-numpy.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                <img src="{{ library }}" alt="The same image encrypted with numpy's FFT">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        The same masks, the same two transforms &mdash; only the transform is
+        swapped, so this is a direct test of <code>transforms.py</code>: the
+        largest difference of any channel value is <b>{{ stats.max }}</b> out of
+        255, with <b>{{ stats.within1 }}%</b> within 1. Two noise fields
+        agreeing to that tolerance is a stronger check than it looks, since a
+        single wrong butterfly anywhere would put every pixel somewhere else.
+        The time column is the honest cost of writing them in Python.
+    </p>
+    {% endif %}
+
+    {# --- the numbers this kind of cipher is judged on --- #}
+    <div class="meta cmp__head">
+        <b>Stats</b> <i>&middot;</i> how much the ciphertext still tells you
+    </div>
+
+    <div class="stats-wrap">
+        <table class="stats">
+            <thead>
+                <tr><th></th><th>Original</th><th>Encrypted</th><th>Wanted</th></tr>
+            </thead>
+            <tbody>
+                <tr><th>Neighbour correlation</th><td>{{ corr_plain }}</td><td class="ours">{{ corr_cipher }}</td><td>0.000</td></tr>
+                <tr><th>Entropy</th><td>{{ entropy_plain }} bits</td><td class="ours">{{ entropy_cipher }} bits</td><td>8.00 bits</td></tr>
+                <tr><th>Size</th><td>{{ bytes_raw }}</td><td class="ours">{{ cipher_bytes }}</td><td>&mdash;</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p class="cmp__note">
+        Correlation is between each pixel and its right-hand neighbour: a photo
+        sits near 0.9, because one pixel nearly tells you the next, and noise sits
+        near 0. Entropy is of the 8-bit histogram, where 8.00 means every value is
+        equally likely{% if not real_cipher %} &mdash; |E| falls short of it
+        honestly, since the magnitude of a complex field with random phase is
+        Rayleigh distributed, not flat{% endif %}. Size is the ciphertext:
+        {% if real_cipher %}one byte per channel, the same as the raw image, plus
+        the handful of bytes of tags inside the PNG{% else %}a complex128 field,
+        16 bytes a channel, which is the price of a ciphertext that is not an
+        image{% endif %}.
+    </p>
+
+    <p class="cmp__note">
+        Worth saying plainly: this is the Fourier transform used as a cipher, not
+        a cipher you should use. Double random phase encoding is a real scheme and
+        a landmark one, but it is linear, and a linear cipher falls to a
+        known-plaintext attack &mdash; a few plaintext-ciphertext pairs are enough
+        to solve for the masks. The passphrase is hashed once with sha256, which
+        is not a key derivation function either.
+    </p>
+</section>

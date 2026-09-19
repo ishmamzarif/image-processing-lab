@@ -194,11 +194,11 @@ def denoise_image(noisy, which, cutoff, width, softness):
 def numpy_filter(rgb, mask):
     """The same mask applied with numpy's FFT instead of ours.
 
-    NOTE: this is the only numpy.fft call in the project, it lives here in a
-    library baseline rather than in transforms.py, and it exists purely as a
-    check on the hand-written transform. Delete this function and the
-    `library=` argument below if the assignment forbids the import anywhere in
-    the tree.
+    NOTE: numpy.fft appears twice in the project, here and in encrypt.py,
+    both times in a library baseline rather than in transforms.py, and both
+    times purely as a check on the hand-written transform. Delete this function
+    and the `library=` argument below if the assignment forbids the import
+    anywhere in the tree.
     """
     padded, (h, w) = pad_to_pow2(rgb)
     out = np.zeros_like(padded)

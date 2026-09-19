@@ -1,0 +1,103 @@
+<section id="result">
+    <div class="meta">
+        <b>Decrypt</b>
+        <i>&middot;</i> {% if scheme == 'phase' %}phase-only cipher{% else %}{{ scheme }} ciphertext{% endif %}
+        <i>&middot;</i> key &ldquo;{{ key }}&rdquo;
+        <i>&middot;</i> {{ cipher_size | replace(' x ', ' × ') }}
+        <i>&middot;</i> <u>{{ elapsed }} s</u>
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Ciphertext</span>
+                <span class="conv__sub">{% if tagged %}stretched from {{ span_low }} to {{ span_high }}{% else %}no tags &middot; read as 0 to 1{% endif %}</span>
+            </div>
+            <div class="plate__well" data-cap="The uploaded ciphertext">
+                <img src="{{ ciphertext }}" alt="The encrypted picture that was uploaded">
+            </div>
+        </div>
+
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Decrypted</span>
+                <span class="conv__sub">{{ size | replace(' x ', ' × ') }}</span>
+                <a class="save" href="{{ recovered }}" download="decrypted.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Decrypted">
+                <img src="{{ recovered }}" alt="The picture recovered from the ciphertext">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        {% if undecryptable %}
+        This file says it is a <b>{{ scheme }}</b> ciphertext, and that is a
+        picture of one rather than one itself. DRPE's output is a complex field;
+        what Encrypt draws for it is |E|, and the phase &mdash; half of the
+        information, and the half that carries the structure &mdash; was never
+        written down. No passphrase can bring back what is not in the file, so
+        the plate beside it is noise, and it would be noise with the right key
+        too. That is exactly why the phase-only cipher exists: it gives up some
+        strength to keep the ciphertext real, and a real ciphertext is a file
+        you can save.
+        {% elif tagged %}
+        The file arrived with its own tags: a phase ciphertext, stretched from
+        {{ span_low }} to {{ span_high }}, to be cropped back to
+        {{ size | replace(' x ', ' × ') }}. So this is a genuine round trip
+        through a saved file &mdash; encrypted in one request, written to a PNG,
+        uploaded again in another, and opened with the passphrase alone. Nothing
+        was held on the server in between; the only thing that had to survive
+        was the picture and the key in your head.
+        {% else %}
+        This picture carried no tags of ours, so it was read as a phase
+        ciphertext using the whole 0&ndash;255 range, and the result was
+        stretched back out afterwards. That still works, and the reason is worth
+        knowing: the whole pipeline is linear and a flat image comes back as
+        itself, so decrypting the stretched picture instead of the ciphertext
+        gives the right photo at the wrong brightness and contrast &mdash; an
+        affine of it, which one more stretch undoes. What is gone for good is
+        the crop, so any reflected padding the encryption added is still here.
+        {% endif %}
+    </p>
+
+    <p class="cmp__note">
+        A wrong passphrase does not show up as a damaged photo. The two masks
+        fail to cancel and leave <code>e<sup>i(&phi;&minus;&phi;&prime;)</sup></code>
+        behind, which is one more random phase, so the plate stays noise until
+        the key is exactly right &mdash; the passphrase is hashed before a mask
+        is drawn, and one character's difference is a different key entirely.
+    </p>
+
+    {% if library %}
+    {# --- the identical decryption on numpy's FFT. Same algorithm, so the
+           numbers measure transforms.py itself. --- #}
+    <div class="meta cmp__head">
+        <b>Library</b>
+        <i>&middot;</i> numpy
+        <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
+        {% if speedup %}<i>&middot;</i> {{ speedup }}&times; faster{% endif %}
+    </div>
+
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Library <code class="cmp__call">{{ lib_call }}</code></span>
+                <a class="save" href="{{ library }}" download="decrypted-numpy.png">Save png</a>
+            </div>
+            <div class="plate__well" data-cap="Library — {{ lib_call }}">
+                <img src="{{ library }}" alt="The same ciphertext decrypted with numpy's FFT">
+            </div>
+        </div>
+    </div>
+
+    <p class="cmp__note">
+        The same masks, the same two transforms, the same conjugates &mdash;
+        only the transform is swapped. The largest difference of any channel
+        value is <b>{{ stats.max }}</b> out of 255, with
+        <b>{{ stats.within1 }}%</b> within 1, so the hand-written radix-2
+        butterflies invert the way numpy's do. The time column is the honest
+        cost of writing them in Python.
+    </p>
+    {% endif %}
+</section>

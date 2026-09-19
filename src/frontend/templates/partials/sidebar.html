@@ -19,6 +19,8 @@
     ('edges',      'Edges',      'cft high-pass', 'Detect edges'),
     ('denoise',    'Denoise',    'fft notch',     'Denoise'),
     ('compress',   'Compress',   'fft top-k',     'Compress'),
+    ('encrypt',    'Encrypt',    'fft phase key', 'Encrypt'),
+    ('decrypt',    'Decrypt',    'key + saved png', 'Decrypt'),
     ('brightness', 'Brightness', 'point op',      'Apply brightness'),
     ('channels',   'Channels',   'rgb offsets',   'Apply channels'),
     ('filters',    'Filters',    'per pixel',     'Apply filter'),
@@ -92,6 +94,8 @@
         {% include 'partials/controls/denoise.html' %}
         {% include 'partials/controls/sharpen.html' %}
         {% include 'partials/controls/compress.html' %}
+        {% include 'partials/controls/encrypt.html' %}
+        {% include 'partials/controls/decrypt.html' %}
         {% include 'partials/controls/brightness.html' %}
         {% include 'partials/controls/filters.html' %}
         {% include 'partials/controls/resize.html' %}

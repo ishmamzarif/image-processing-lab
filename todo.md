@@ -2,7 +2,7 @@
 ## Features
 - [x] Resize
 - [x] Cropping
-- [ ] Encryption
+- [x] Encryption
 - [x] Improve UI, preview
 - [ ] fix the call flow and methods after final
         refactoring

@@ -1,0 +1,63 @@
+{# Encrypt (backend/features/encrypt.py, backend/features/decrypt.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                 <i>features/encrypt.py</i>
+ ├─ <b>open_image</b>(file, 256)              <i>common/uploads.py</i>
+ ├─ <b>encrypt</b>(clean, key, scheme)
+ │   ├─ <b>pad_to_pow2</b>(rgb)           ①   <i>common/fourier_2d.py</i>
+ │   ├─ <b>masks</b>(key, scheme)         ②   <i>common/phase_keys.py</i>
+ │   │   └─ <b>symmetric_phase_mask</b>   ③   <i>phase cipher only</i>
+ │   └─ <b>fft2</b> · R₂ → <b>ifft2</b> → E      ④   <i>common/fourier_2d.py</i>
+ ├─ <b>visible</b>(E, scheme)             ⑤   <i>common/cipher_file.py</i>
+ ├─ <b>tags</b>(scheme, span, crop)       ⑥   <i>common/cipher_file.py</i>
+ ├─ <b>numpy_encrypt</b>(…)                   <i>baseline</i>
+ └─ <b>adjacent_correlation</b> / <b>entropy</b>  ⑦</pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">M = 2^{\lceil \log_2 H \rceil}, \qquad N = 2^{\lceil \log_2 W \rceil}</div>
+<pre class="code" data-lang="python">padded, crop = pad_to_pow2(rgb)</pre>
+        <em>Radix-2 needs power-of-two sides. Unlike everywhere else, the padding cannot be cropped off the ciphertext: every output pixel is a sum over every input pixel, so discarding part of the field would take part of every pixel with it. The ciphertext is M×N, and the crop waits until after decryption.</em></div></div>
+
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">r = \operatorname{U}(0,1) \ \text{seeded by} \ \operatorname{sha256}(\text{purpose} : \text{key}), \qquad R = e^{\,2\pi i\,r}, \quad |R| = 1</div>
+<pre class="code" data-lang="python">digest = hashlib.sha256((purpose + ":" + key).encode("utf-8")).digest()
+seed = [int(word) for word in np.frombuffer(digest, dtype=np.uint32)]
+return np.random.default_rng(seed).random(shape)</pre>
+        <em>The passphrase is the whole key: hash it, seed the generator, draw the masks. Two are needed and they must differ, so the purpose string is hashed in with the key. All 256 bits are used, which is why one changed character gives unrelated masks rather than similar ones. Both halves of the operation draw them from this one file, which is what keeps them in step.</em></div></div>
+
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">\phi[-u,-v] = -\phi[u,v] \ \Longrightarrow \ R_2[-u,-v] = \overline{R_2[u,v]} \ \Longrightarrow \ E \in \mathbb{R}</div>
+<pre class="code" data-lang="python">mirrored = r[u[:, None], v[None, :]]
+return np.exp(1j * np.pi * (r - mirrored))</pre>
+        <em>What makes the phase-only cipher's ciphertext an ordinary image. A real image has a conjugate-symmetric spectrum, and a mask whose angle is odd keeps it that way, so the inverse comes back real. Subtracting r from its own mirror makes the angle odd for free, and zero at the bins that are their own mirror. The price: |R₂| = 1 leaves |X| alone, so the power spectrum leaks in full.</em></div></div>
+
+    <div class="eq"><span class="eq__n">④</span><div class="eq__body">
+        <div class="tex">E = \mathcal{F}^{-1}\big\lbrace \mathcal{F}\lbrace x \cdot R_1 \rbrace \cdot R_2 \big\rbrace</div>
+<pre class="code" data-lang="python">spectrum = fft2(padded[:, :, c] * spatial) * frequency
+cipher[:, :, c] = ifft2(spectrum)</pre>
+        <em>Double random phase encoding, Refregier and Javidi, 1995 — an optical cipher, where each mask is a piece of ground glass and the transform is a lens. Since |R₁| = |R₂| = 1, no energy is added or removed anywhere: only phase moves. R₁ is the mask that whitens, because a random phase over the <b>image</b> spreads its energy across the whole spectrum; a mask applied only in the spectrum could never do that.</em></div></div>
+
+    <div class="eq"><span class="eq__n">⑤</span><div class="eq__body">
+        <div class="tex">p = \frac{E - \ell}{h - \ell}, \qquad \ell = \min E, \quad h = \max E</div>
+<pre class="code" data-lang="python">field = np.real(cipher) if scheme == "phase" else np.abs(cipher)
+return (field - low) / (high - low), (low, high)</pre>
+        <em>The field fitted into the 0–255 an image file can hold, one range for all three channels so the colour balance survives. For the phase cipher this is the transport format itself: the ciphertext is real, so what is stretched here is the whole of it, and ⑥ writes ℓ and h into the file so it can be undone. For DRPE the stretch is display only — it draws |E|, and the phase it drops cannot be recovered from the picture.</em></div></div>
+
+    <div class="eq"><span class="eq__n">⑥</span><div class="eq__body">
+        <div class="tex">\text{PNG} \ \longleftarrow \ \big(\text{cipher},\ (\ell, h),\ (H, W)\big)</div>
+<pre class="code" data-lang="python">encrypted=to_data_uri(picture_u8, tags(scheme, span, crop)),</pre>
+        <em>Three things besides the key are needed to read this file back, and none of them is secret: which cipher made it, the stretch that fitted it into 0–255, and the size to crop back to. They are written into the PNG as tEXt chunks, so they travel inside the picture and the Decrypt page needs nothing from you but the passphrase. It is the envelope, not the letter.</em></div></div>
+
+    <div class="eq"><span class="eq__n">⑦</span><div class="eq__body">
+        <div class="tex">\rho = \frac{\operatorname{cov}(p,\,p_{\rightarrow})}{\sigma_p \sigma_{p_{\rightarrow}}}, \qquad H = -\sum_{k=0}^{255} p_k \log_2 p_k</div>
+<pre class="code" data-lang="python">return float(np.corrcoef(left, right)[0, 1])
+p = counts / counts.sum()
+return float(-(p * np.log2(p)).sum())</pre>
+        <em>The two figures this kind of cipher is judged on: how much a pixel still says about its neighbour, and how flat the histogram is. Double random phase takes the correlation from about 0.9 to about 0, and the phase-only cipher does not move it at all — autocorrelation is the inverse transform of the power spectrum, and that cipher leaves the power spectrum exactly where it found it.</em></div></div>
+</div>

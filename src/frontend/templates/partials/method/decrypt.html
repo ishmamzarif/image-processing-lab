@@ -1,0 +1,63 @@
+{# Decrypt (backend/features/decrypt.py). The circled numbers tie each step in the flow to its equation. #}
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Flow</h4>
+
+<pre class="code flow" data-lang="python">view()                                 <i>features/decrypt.py</i>
+ ├─ <b>open_image_as_is</b>(file)         ①   <i>common/uploads.py</i>
+ ├─ <b>read_tags</b>(text, shape)         ②   <i>common/cipher_file.py</i>
+ ├─ <b>next_power_of_two</b> guard            <i>transforms.py</i>
+ ├─ <b>from_picture</b>(png, span)        ③   <i>common/cipher_file.py</i>
+ ├─ <b>decrypt</b>(field, key, crop)
+ │   ├─ <b>masks</b>(key, scheme)         ④   <i>common/phase_keys.py</i>
+ │   ├─ <b>recover</b>(E, key)            ⑤   <i>common/fourier_2d.py</i>
+ │   └─ <b>plaintext</b>(field)           ⑥
+ ├─ <b>restretch</b>(recovered)           ⑦   <i>untagged files only</i>
+ ├─ <b>numpy_decrypt</b>(…)                   <i>baseline</i>
+ └─ <b>compare</b>(ours, library)             <i>common/metrics.py</i></pre>
+</div>
+
+<div class="recipe__col">
+    <h4 class="recipe__h">Equations</h4>
+
+    <div class="eq"><span class="eq__n">①</span><div class="eq__body">
+        <div class="tex">\tilde{E} \in \lbrace 0,\dots,255 \rbrace^{M \times N \times 3}, \qquad M = 2^{a},\ N = 2^{b}</div>
+<pre class="code" data-lang="python">img = Image.open(file.stream)
+img.load()
+text = dict(getattr(img, "text", {}) or {})</pre>
+        <em>Opened at its own size, unlike every other page here. A photograph can be shrunk to fit the working size; a ciphertext cannot be resampled at all — every pixel of it is a sum over every pixel of the original, so touching one damages all of them. Its size is data, not a detail, and a picture whose sides are not powers of two was not made by the encoder.</em></div></div>
+
+    <div class="eq"><span class="eq__n">②</span><div class="eq__body">
+        <div class="tex">\text{tEXt} \ \longrightarrow \ \big(\text{cipher},\ (\ell, h),\ (H, W)\big)</div>
+<pre class="code" data-lang="python">TAG_SCHEME = "ipl-cipher"
+TAG_LOW = "ipl-low"
+TAG_HIGH = "ipl-high"</pre>
+        <em>Three things besides the key are needed to read a ciphertext, and none of them is secret: which cipher made it, the stretch that fitted it into 0–255, and the size to crop back to. Encrypt writes them into the PNG as text chunks, so they travel inside the picture. It is the envelope, not the letter: anyone holding the file can read all of it and still have no way to open it.</em></div></div>
+
+    <div class="eq"><span class="eq__n">③</span><div class="eq__body">
+        <div class="tex">E = \frac{\tilde{E}}{255}\,(h - \ell) + \ell</div>
+<pre class="code" data-lang="python">return picture.astype(np.float64) / 255.0 * (high - low) + low</pre>
+        <em>The stretch undone, which puts the 8-bit picture back on the scale the cipher field was on. This is the one lossy step in the whole round trip: the values were rounded to 256 levels when the file was written, and that rounding is what stops the recovery being exact.</em></div></div>
+
+    <div class="eq"><span class="eq__n">④</span><div class="eq__body">
+        <div class="tex">R = e^{\,2\pi i\,r}, \qquad r \ \text{seeded by} \ \operatorname{sha256}(\text{purpose} : \text{key})</div>
+<pre class="code" data-lang="python">spatial, frequency = masks(key, scheme, cipher.shape[:2])</pre>
+        <em>The same masks the encryption drew, rebuilt from the same passphrase by the same code in common/phase_keys.py. That shared file is the whole reason the two halves agree: neither can change how a mask is drawn without the other following.</em></div></div>
+
+    <div class="eq"><span class="eq__n">⑤</span><div class="eq__body">
+        <div class="tex">\psi = \overline{R_1} \cdot \mathcal{F}^{-1}\big\lbrace \mathcal{F}\lbrace E \rbrace \cdot \overline{R_2} \big\rbrace, \qquad R\overline{R} = |R|^2 = 1</div>
+<pre class="code" data-lang="python">out[:, :, c] = ifft2(fft2(cipher[:, :, c]) * np.conj(frequency)) * np.conj(spatial)</pre>
+        <em>Conjugating a unit-magnitude mask inverts it, so this is the encryption's own steps with the masks conjugated and run in the opposite order. Nothing was discarded going in — no bin zeroed, no magnitude rounded — so the only error is float round-off, about 10⁻¹⁶, and the quantisation from ③.</em></div></div>
+
+    <div class="eq"><span class="eq__n">⑥</span><div class="eq__body">
+        <div class="tex">\tilde{x} = \operatorname{clip}\big(\Re\,\psi,\ 0, 1\big) \ \text{(phase)}, \qquad \tilde{x} = \operatorname{clip}\big(|\psi|,\ 0, 1\big) \ \text{(drpe)}</div>
+<pre class="code" data-lang="python">pixels = np.real(field) if scheme == "phase" else np.abs(field)
+return np.clip(pixels, 0.0, 1.0)</pre>
+        <em>Which part of a complex field is the picture. With the right key the two readings agree exactly, because the recovered field is then the image itself: real, and never negative. They part company only when the key is wrong — and there the magnitude is the honest answer, since a failed decryption comes back zero-mean and clipping its real part would floor half the plate to black.</em></div></div>
+
+    <div class="eq"><span class="eq__n">⑦</span><div class="eq__body">
+        <div class="tex">\mathcal{D}(\alpha E + \beta) = \alpha\,x + \beta \quad \Longrightarrow \quad \frac{\tilde{x} - \min \tilde{x}}{\max \tilde{x} - \min \tilde{x}} \approx x</div>
+<pre class="code" data-lang="python">low, high = float(image.min()), float(image.max())
+return (image - low) / (high - low)</pre>
+        <em>The fallback for a file that carried no tags. Decryption is linear and a flat image comes back as itself, so decrypting the stretched picture rather than the field gives an affine of the photo — the right picture at the wrong brightness and contrast. One more stretch undoes it. The crop cannot be guessed the same way, so such a result keeps its padding.</em></div></div>
+</div>

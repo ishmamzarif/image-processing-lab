@@ -40,12 +40,12 @@
                 its result and method files); blur when nothing has run yet
        result   our output image, or nothing on the empty page
        ks, kk, cut, amt   slider values to restore, with their defaults #}
-    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'compress' if compressed else 'brightness' if brightened else 'channels' if shifted else 'filters' if filtered else 'resize' if resized else 'blur' %}
+    {% set active = 'sharpen' if sharpened else 'edges' if edges else 'denoise' if denoised else 'compress' if compressed else 'encrypt' if encrypted else 'decrypt' if recovered else 'brightness' if brightened else 'channels' if shifted else 'filters' if filtered else 'resize' if resized else 'blur' %}
     {% set ks = ksize | string if ksize else '5' %}
     {% set kk = kernel_kind or 'box' %}
     {% set cut = cutoff or edge_cutoff or '15' %}
     {% set amt = amount or '1' %}
-    {% set result = blurred or sharpened or edges or denoised or compressed or brightened or shifted or filtered or resized %}
+    {% set result = blurred or sharpened or edges or denoised or compressed or encrypted or recovered or brightened or shifted or filtered or resized %}
 
     <div class="app">
 
@@ -71,7 +71,7 @@
             {% elif not error %}
 
             <div class="empty" id="empty">
-                <p><b>Blur</b> &nbsp;&middot;&nbsp; <b>Sharpen</b> &nbsp;&middot;&nbsp; <b>Edges</b> &nbsp;&middot;&nbsp; <b>Denoise</b> &nbsp;&middot;&nbsp; <b>Compress</b> &nbsp;&middot;&nbsp; <b>Brightness</b> &nbsp;&middot;&nbsp; <b>Channels</b></p>
+                <p><b>Blur</b> &nbsp;&middot;&nbsp; <b>Sharpen</b> &nbsp;&middot;&nbsp; <b>Edges</b> &nbsp;&middot;&nbsp; <b>Denoise</b> &nbsp;&middot;&nbsp; <b>Compress</b> &nbsp;&middot;&nbsp; <b>Encrypt</b> &nbsp;&middot;&nbsp; <b>Decrypt</b> &nbsp;&middot;&nbsp; <b>Brightness</b> &nbsp;&middot;&nbsp; <b>Channels</b> &nbsp;&middot;&nbsp; <b>Filters</b> &nbsp;&middot;&nbsp; <b>Resize</b></p>
                 <p>Choose an image and run an operation</p>
             </div>
 
