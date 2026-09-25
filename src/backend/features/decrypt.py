@@ -39,11 +39,13 @@ What the file has to carry
     What cannot be recovered is the crop, so such a result keeps the reflected
     padding it was encrypted with.
 
-What cannot be decrypted
-    A DRPE ciphertext. It is complex, and the plate Encrypt draws for it is
-    |E|, with the phase -- half the information -- never written down. Given
-    one of those this page runs anyway and shows the noise that comes out,
-    because that is the honest demonstration of why the phase cipher exists.
+Both ciphers
+    A phase ciphertext is real, and its file is simply the field. A DRPE one is
+    complex, so Encrypt saves its real part above its imaginary part, one
+    picture twice as tall as the field, and cipher_file.from_picture() joins the
+    two halves again. With both halves nothing is missing, and it decrypts as
+    exactly as the phase cipher does; the 8-bit rounding just lands on two
+    numbers per pixel instead of one, so it comes back a little noisier.
 
 With the wrong passphrase
     The masks do not cancel. conj(R') against R leaves e^(i(phi - phi')), which
@@ -101,8 +103,7 @@ def recover(cipher, key, scheme):
 def plaintext(field, scheme):
     """The recovered field as pixels: the picture a decryption hands back.
 
-    Which part of a complex field is the picture depends on the cipher, and it
-    is the same rule cipher_file.visible() uses on the way out:
+    Which part of a complex field is the picture depends on the cipher:
 
         phase   the scheme is built to keep everything real, so the real part
                 is the picture and the imaginary part is round-off.
@@ -194,11 +195,12 @@ def view():
     if next_power_of_two(height) != height or next_power_of_two(width) != width:
         raise UploadError(
             "A ciphertext is a power-of-two size, and this is {} x {}. "
-            "Run Encrypt with the phase-only cipher, save that picture, and choose it here."
+            "Run Encrypt, save that picture, and choose it here."
             .format(width, height)
         )
 
-    field = from_picture(ciphertext, span)
+    # for DRPE this also joins the real and imaginary halves back together
+    field = from_picture(ciphertext, span, scheme)
 
     recovered, elapsed = timed(decrypt, field, key, scheme, crop)
     library, elapsed_lib = timed(numpy_decrypt, field, key, scheme, crop)
@@ -222,9 +224,6 @@ def view():
         key=key,
         scheme=scheme,
         tagged=tagged,
-        # a DRPE plate is |E|: the phase was never written down, so there is
-        # nothing here that a key could open
-        undecryptable=(scheme != "phase"),
         cipher_size=size_text(ciphertext),
         size=size_text(recovered_u8),
         span_low="{:.3f}".format(span[0]),

@@ -13,6 +13,7 @@
      partials/preview.html         the picked image, before anything is run
      partials/conv_viz.html        the animated blur (static/js/conv-viz.js)
      partials/live_adjust.html     live brightness / channels / filters (static/js/adjust.js)
+     partials/rgb_cube.html        the 3D colour cube for channels and filters (static/js/rgb-cube.js)
      partials/results/             one file per operation's result
      partials/method/              one file per operation's call flow and equations #}
 
@@ -103,6 +104,11 @@
             integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
     {% endif %}
     <script src="{{ url_for('static', filename='js/conv-viz.js') }}"></script>
+    {# the 3D views: plot3d.js is the shared engine, and rgb-cube.js has to be
+       listening before adjust.js reports its first redraw #}
+    <script src="{{ url_for('static', filename='js/plot3d.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/rgb-cube.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/spectrum-3d.js') }}"></script>
     <script src="{{ url_for('static', filename='js/adjust.js') }}"></script>
 
 </body>

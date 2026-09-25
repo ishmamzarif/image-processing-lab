@@ -20,7 +20,7 @@
     // screen pixels per source pixel in the magnified panel. 0 means "fit",
     // where the scale is whatever shows the entire image at once.
     var ZOOMS = [0, 1, 2, 3, 4, 6, 9, 14, 20, 28];
-    var ZOOM_DEFAULT = 7;
+    var ZOOM_DEFAULT = 0;   // "fit": the whole image, zoomed out
 
     // grid mode: cells on the long side, and how long the kernel dwells on each
     // cell at each speed setting. 0 is "finish it now".

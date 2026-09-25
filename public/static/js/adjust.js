@@ -342,6 +342,17 @@
         elMs.textContent = (performance.now() - t0).toFixed(1) + ' ms';
         elTitle.textContent = op.title;
         elParams.textContent = op.label(p);
+
+        // the colour cube (rgb-cube.js) redraws from the same two images.
+        // It pairs pixels by position, which only works while the size is kept.
+        section.dispatchEvent(new CustomEvent('live-render', {
+            detail: {
+                before: src,
+                after: out.data,
+                pixels: srcWidth * srcHeight,
+                sameSize: !op.outputSize
+            }
+        }));
     }
 
     // input events arrive faster than the screen redraws, so the work is

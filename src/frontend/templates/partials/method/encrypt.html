@@ -44,10 +44,13 @@ cipher[:, :, c] = ifft2(spectrum)</pre>
         <em>Double random phase encoding, Refregier and Javidi, 1995 — an optical cipher, where each mask is a piece of ground glass and the transform is a lens. Since |R₁| = |R₂| = 1, no energy is added or removed anywhere: only phase moves. R₁ is the mask that whitens, because a random phase over the <b>image</b> spreads its energy across the whole spectrum; a mask applied only in the spectrum could never do that.</em></div></div>
 
     <div class="eq"><span class="eq__n">⑤</span><div class="eq__body">
-        <div class="tex">p = \frac{E - \ell}{h - \ell}, \qquad \ell = \min E, \quad h = \max E</div>
-<pre class="code" data-lang="python">field = np.real(cipher) if scheme == "phase" else np.abs(cipher)
+        <div class="tex">p = \frac{f - \ell}{h - \ell}, \qquad f = \begin{cases} E &amp; \text{phase} \\ \begin{bmatrix} \Re E \\ \Im E \end{bmatrix} &amp; \text{drpe} \end{cases}, \qquad \ell = \min f, \quad h = \max f</div>
+<pre class="code" data-lang="python">if scheme == "phase":
+    field = np.real(cipher)
+else:
+    field = np.concatenate([np.real(cipher), np.imag(cipher)], axis=0)
 return (field - low) / (high - low), (low, high)</pre>
-        <em>The field fitted into the 0–255 an image file can hold, one range for all three channels so the colour balance survives. For the phase cipher this is the transport format itself: the ciphertext is real, so what is stretched here is the whole of it, and ⑥ writes ℓ and h into the file so it can be undone. For DRPE the stretch is display only — it draws |E|, and the phase it drops cannot be recovered from the picture.</em></div></div>
+        <em>The field fitted into the 0–255 an image file can hold, one range for all three channels so the colour balance survives, and ⑥ writes ℓ and h into the file so it can be undone. The phase ciphertext is real, so it is the picture as it stands. DRPE's is complex, and an image has no room for that, so it goes in as two images stacked, the real part above the imaginary: twice as tall, and nothing dropped, so it decrypts too.</em></div></div>
 
     <div class="eq"><span class="eq__n">⑥</span><div class="eq__body">
         <div class="tex">\text{PNG} \ \longleftarrow \ \big(\text{cipher},\ (\ell, h),\ (H, W)\big)</div>

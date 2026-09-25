@@ -5,10 +5,4 @@
 
 {% set headline %}<b>Resize</b> <i>&middot;</i> {{ scale }}% <i>&middot;</i> to {{ new_size | replace(' x ', ' × ') }}{% endset %}
 
-{% set library_note %}
-Pillow's nearest-neighbour resize picks the old pixel under the middle of each
-new pixel in exactly the same way, stepping along each row and column, so the
-two pictures are copied from the same pixels.
-{% endset %}
-
 {% include 'partials/results/comparison.html' %}

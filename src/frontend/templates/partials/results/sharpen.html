@@ -5,12 +5,4 @@
 
 {% set headline %}<b>Sharpen</b> <i>&middot;</i> cutoff {{ cutoff }} <i>&middot;</i> amount {{ amount }}{% endset %}
 
-{% set library_note %}
-<code>UnsharpMask</code> subtracts a Gaussian blur in the spatial domain,
-while ours removes the low frequencies from a Fourier transform. The
-parameters were mapped by sense rather than by equivalence: amount became
-percent, and a high cutoff became a small radius, since both keep only
-finer detail.
-{% endset %}
-
 {% include 'partials/results/comparison.html' %}

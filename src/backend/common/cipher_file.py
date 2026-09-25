@@ -5,13 +5,18 @@ this is where they meet: the container format sits here, so the encoder and the
 decoder cannot drift apart, and so each feature file holds one direction of the
 cipher and nothing else.
 
-A cipher field is complex, and may be any range at all. Getting it into a PNG
-means two things:
+A cipher field may be any range at all, and for DRPE it is complex. Getting
+it into a PNG means two things:
 
-    visible()       stretch the field into 0..1 for an 8-bit picture, and say
-                    which range it was stretched from
-    from_picture()  undo that stretch, turning the 8-bit picture back into the
-                    field a decryption can work on
+    visible()       lay the field out as a picture, stretched into 0..1 for 8
+                    bits, and say which range it was stretched from
+    from_picture()  undo that, turning the 8-bit picture back into the field a
+                    decryption can work on
+
+A phase ciphertext is real, so the picture is simply the field. A DRPE one is
+complex, and an image has no room for that, so its picture is two images
+stacked: the real part on top and the imaginary part below it, twice as tall
+as the field. Nothing is dropped, and so both ciphers can be decrypted.
 
 and then the range has to travel with the picture, or the second step cannot be
 done. So does the cipher that made it, and the size to crop back to. All three
@@ -40,36 +45,44 @@ TAG_WIDTH = "ipl-width"
 
 
 def visible(cipher, scheme):
-    """The ciphertext drawn as a picture, stretched to 0..1, with the range used.
+    """The ciphertext laid out as a picture, stretched to 0..1, with the range used.
 
-    "phase" has a real ciphertext, so this *is* the ciphertext, and the range
-    is the two numbers from_picture() needs to read it back out of the 8-bit
-    values.
+    "phase" has a real ciphertext, so the picture is the ciphertext itself.
 
-    "drpe" has a complex one, so this is |E| only: a picture of the ciphertext,
-    with the phase -- half of it -- neither shown nor recoverable from it.
-    Which part of a complex field is the picture is decided the same way on the
-    far side, in decrypt.plaintext().
+    "drpe" has a complex one, so the picture is its real part above its
+    imaginary part: the whole of the field, in two halves, so from_picture()
+    can put it back together. The halves share one range, which is also what
+    keeps the two parts on the same scale when they are joined again.
 
-    The stretch is one range for all three channels, not one each, so the
-    colour balance of what comes back is the colour balance that went in.
+    Either way the range is the two numbers from_picture() needs to read the
+    field back out of the 8-bit values. It is one range for all three channels,
+    not one each, so the colour balance of what comes back is the colour
+    balance that went in.
     """
-    field = np.real(cipher) if scheme == "phase" else np.abs(cipher)
+    if scheme == "phase":
+        field = np.real(cipher)
+    else:
+        field = np.concatenate([np.real(cipher), np.imag(cipher)], axis=0)
     low, high = float(field.min()), float(field.max())
     if high <= low:
         return np.zeros_like(field), (low, high)
     return (field - low) / (high - low), (low, high)
 
 
-def from_picture(picture, span):
-    """The ciphertext read back out of its 8-bit picture, undoing the stretch.
+def from_picture(picture, span, scheme):
+    """The ciphertext read back out of its 8-bit picture: the stretch undone, and
+    for DRPE the two halves joined again into one complex field.
 
     The inverse of visible(), and the one lossy step in the whole round trip:
     the values were rounded to 256 levels when the file was written, and that
     rounding is what stops a recovery from being exact.
     """
     low, high = span
-    return picture.astype(np.float64) / 255.0 * (high - low) + low
+    field = picture.astype(np.float64) / 255.0 * (high - low) + low
+    if scheme == "phase":
+        return field
+    half = field.shape[0] // 2
+    return field[:half] + 1j * field[half:]
 
 
 def tags(scheme, span, crop):

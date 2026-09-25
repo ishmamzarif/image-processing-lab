@@ -7,7 +7,7 @@
  ├─ <b>open_image_as_is</b>(file)         ①   <i>common/uploads.py</i>
  ├─ <b>read_tags</b>(text, shape)         ②   <i>common/cipher_file.py</i>
  ├─ <b>next_power_of_two</b> guard            <i>transforms.py</i>
- ├─ <b>from_picture</b>(png, span)        ③   <i>common/cipher_file.py</i>
+ ├─ <b>from_picture</b>(png, span, …)     ③   <i>common/cipher_file.py</i>
  ├─ <b>decrypt</b>(field, key, crop)
  │   ├─ <b>masks</b>(key, scheme)         ④   <i>common/phase_keys.py</i>
  │   ├─ <b>recover</b>(E, key)            ⑤   <i>common/fourier_2d.py</i>
@@ -35,9 +35,13 @@ TAG_HIGH = "ipl-high"</pre>
         <em>Three things besides the key are needed to read a ciphertext, and none of them is secret: which cipher made it, the stretch that fitted it into 0–255, and the size to crop back to. Encrypt writes them into the PNG as text chunks, so they travel inside the picture. It is the envelope, not the letter: anyone holding the file can read all of it and still have no way to open it.</em></div></div>
 
     <div class="eq"><span class="eq__n">③</span><div class="eq__body">
-        <div class="tex">E = \frac{\tilde{E}}{255}\,(h - \ell) + \ell</div>
-<pre class="code" data-lang="python">return picture.astype(np.float64) / 255.0 * (high - low) + low</pre>
-        <em>The stretch undone, which puts the 8-bit picture back on the scale the cipher field was on. This is the one lossy step in the whole round trip: the values were rounded to 256 levels when the file was written, and that rounding is what stops the recovery being exact.</em></div></div>
+        <div class="tex">f = \frac{\tilde{E}}{255}\,(h - \ell) + \ell, \qquad E = \begin{cases} f &amp; \text{phase} \\ f_{\text{top}} + i\,f_{\text{bottom}} &amp; \text{drpe} \end{cases}</div>
+<pre class="code" data-lang="python">field = picture.astype(np.float64) / 255.0 * (high - low) + low
+if scheme == "phase":
+    return field
+half = field.shape[0] // 2
+return field[:half] + 1j * field[half:]</pre>
+        <em>The stretch undone, which puts the 8-bit picture back on the scale the cipher field was on. A DRPE file is two images stacked, the real part above the imaginary, and they are joined back into one complex field here. This is the one lossy step in the whole round trip: the values were rounded to 256 levels when the file was written, and that rounding is what stops the recovery being exact. DRPE rounds two numbers per pixel instead of one, so it comes back a little noisier.</em></div></div>
 
     <div class="eq"><span class="eq__n">④</span><div class="eq__body">
         <div class="tex">R = e^{\,2\pi i\,r}, \qquad r \ \text{seeded by} \ \operatorname{sha256}(\text{purpose} : \text{key})</div>

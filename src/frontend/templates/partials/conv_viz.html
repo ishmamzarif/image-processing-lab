@@ -74,8 +74,8 @@
         </span>
         <span class="conv__speed photo-only">
             Zoom
-            <input type="range" id="conv-zoom-level" min="0" max="9" step="1" value="7">
-            <b id="v-conv-zoom">14&times;</b>
+            <input type="range" id="conv-zoom-level" min="0" max="9" step="1" value="0">
+            <b id="v-conv-zoom">fit</b>
         </span>
         <span class="conv__speed cells-only">
             Grid
@@ -84,22 +84,4 @@
         </span>
     </div>
 
-    <p class="conv__hint photo-only">
-        The same loop <code>convolve2d</code> runs, one output pixel at a time.
-        Left is your image untouched, with the kernel walking over it; right is
-        the output, empty until each pixel is computed. Click the original to
-        jump the run there, or drop the speed to 1&nbsp;px to watch the kernel
-        move a single step per frame. Set zoom to <em>fit</em> to see the whole
-        output beside the whole input; the wheel works over the panel too.
-    </p>
-    <p class="conv__hint cells-only">
-        Your image, reduced to a grid coarse enough to watch. The kernel
-        carries its weights and eases from cell to cell; each stop multiplies
-        the pixels under it by those weights and sums them into one output
-        cell. All three colour channels, exactly as <code>convolve2d</code>
-        does it &mdash; the working panel breaks one stop down into its terms.
-        Coarse grids show the arithmetic but lose the picture; raise the grid
-        slider until the photo reads, at the cost of the weights being too
-        small to print on the kernel.
-    </p>
 </section>

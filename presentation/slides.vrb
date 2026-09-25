@@ -1,0 +1,36 @@
+\frametitle{Encrypt \& Decrypt: theory}
+\concept{all-pass system \enspace\textperiodcentered\enspace phase vs magnitude
+ \enspace\textperiodcentered\enspace invertible systems}
+\begin{columns}[T,totalwidth=\textwidth]
+\column{0.41\textwidth}
+Multiply the spectrum by a unit-magnitude mask:
+\[
+  E = \mathcal{F}^{-1}\{\mathcal{F}\{x\}\, H\}, \quad H = e^{j\varphi},\ |H| = 1
+\]
+\begin{itemize}
+  \item \textbf{All-pass}: energy unchanged
+  \item Phase holds structure: scrambled
+  \item $H^{-1} = H^* = e^{-j\varphi}$: \alert{exact} recovery
+  \item Wrong key: $e^{j(\varphi-\varphi')}$, another scramble
+\end{itemize}
+
+\medskip
+Odd phase, $\varphi[-u,-v] = -\varphi[u,v]$, keeps $E$ real, so it saves as a PNG.
+
+\column{0.55\textwidth}
+\begin{lstlisting}
+def phase_mask(key, shape):
+    r = rng(sha256(key)).random(shape)
+    phi = pi * (r - mirror(r))    # odd phase
+    return exp(1j * phi)          # |H| = 1
+
+def encrypt(x, key):
+    H = phase_mask(key, x.shape)
+    E = ifft2(fft2(x) * H).real   # stays real
+    return to_png(E)              # + scheme, crop
+
+def decrypt(E, key):
+    H = phase_mask(key, E.shape)
+    return ifft2(fft2(E) * conj(H)).real
+\end{lstlisting}
+\end{columns}

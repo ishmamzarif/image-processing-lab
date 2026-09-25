@@ -496,7 +496,6 @@ body[data-ops="off"] .op:not(:has(input:checked)) {
 .rail:has(#op-encrypt:checked) .f-scheme,
 .rail:has(#op-encrypt:checked) .f-key,
 .rail:has(#op-decrypt:checked) .f-guess,
-.rail:has(#op-decrypt:checked) .f-hint,
 .rail:has(#op-brightness:checked) .f-gain,
 .rail:has(#op-channels:checked) .f-rgb,
 .rail:has(#op-filters:checked) .f-fkind,
@@ -555,15 +554,6 @@ select {
 
 .text::placeholder {
     color: var(--faint);
-}
-
-/* a line of guidance under a control, where what to do is not obvious
-   from the field alone (Decrypt, whose Source is a ciphertext) */
-.hint {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: var(--t-small);
-    line-height: 1.4;
 }
 
 select:hover,
@@ -776,6 +766,27 @@ input[type="range"]:focus-visible {
     border-bottom-color: var(--ink);
 }
 
+/* a Save link with a button beside it (Encrypt's Decrypt), kept together at
+   the end of the bar rather than spread across it */
+.plate__acts {
+    display: inline-flex;
+    gap: 14px;
+}
+
+/* the same underlined word as a Save link, on a button */
+button.save {
+    padding: 0;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--line-2);
+    border-radius: 0;
+    font: inherit;
+    font-weight: 500;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
 .plate__well {
     display: flex;
     align-items: center;
@@ -914,30 +925,10 @@ input[type="range"]:focus-visible {
     color: var(--ink);
 }
 
-.cmp__note {
-    max-width: 640px;
-    margin: 22px auto 0;
-    font-size: var(--t-small);
-    line-height: 1.55;
-    text-align: center;
-    color: var(--faint);
-}
-
-.cmp__note code {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-    font-size: .92em;
-}
-
-.cmp__note b {
-    color: var(--ink);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
 
 /* ---------- compression stats ---------- */
 
-/* the same measure as the notes, so the table lines up under them. It
-   can be wider than a phone, hence its own scroller. */
+/* It can be wider than a phone, hence its own scroller. */
 .stats-wrap {
     max-width: 640px;
     margin: 22px auto 0;
@@ -1413,15 +1404,6 @@ body[data-viz="on"]:has(#op-blur:checked) .canvas:has(.conv:not([hidden])) .prev
     text-transform: none;
 }
 
-.conv__hint {
-    max-width: 620px;
-    margin: 16px auto 0;
-    font-size: var(--t-small);
-    line-height: 1.55;
-    text-align: center;
-    color: var(--muted);
-}
-
 /* ---------- live preview ---------- */
 
 /* The per-pixel operations, brightness, channels and filters, are cheap
@@ -1445,6 +1427,27 @@ body:has(:is(#op-brightness, #op-channels, #op-filters, #op-resize):checked) .ca
 .live canvas {
     display: block;
     max-width: 100%;   /* an enlarging resize can be wider than the column */
+}
+
+/* ---------- 3D views ---------- */
+
+/* The colour cube (partials/rgb_cube.html, rgb-cube.js) and the Denoise
+   spectrum surface (spectrum-3d.js). plot3d.js sizes each canvas to fit its
+   row, so nothing here may squeeze it: .live canvas would, and the drawing
+   would stretch with it. */
+.cube canvas,
+.spectrum3d canvas {
+    display: block;
+    max-width: none;
+}
+
+/* in the live preview the cube belongs to channels and filters only */
+.live .cube {
+    display: none;
+}
+
+body:has(:is(#op-channels, #op-filters):checked) .live .cube {
+    display: block;
 }
 
 /* ---------- camera ---------- */

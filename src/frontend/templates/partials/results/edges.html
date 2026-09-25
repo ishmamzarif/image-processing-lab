@@ -5,10 +5,4 @@
 
 {% set headline %}<b>Edge detect</b> <i>&middot;</i> cutoff {{ edge_cutoff }}{% endset %}
 
-{% set library_note %}
-<code>FIND_EDGES</code> is a fixed 3&times;3 spatial kernel, while ours
-discards low frequencies and transforms back &mdash; which is why it has
-no cutoff to set. Inverted here so both draw dark lines on white.
-{% endset %}
-
 {% include 'partials/results/comparison.html' %}

@@ -5,12 +5,4 @@
 
 {% set headline %}<b>Brightness</b> <i>&middot;</i> gain {{ gain }}&times;{% if clipped %} <i>&middot;</i> {{ clipped }}% clipped{% endif %}{% endset %}
 
-{% set library_note %}
-Pillow blends the image with black, which is the same gain, and truncates
-just as <code>astype</code> does.{% if stats.max > 0 %} Where the two
-differ it is precision: Pillow holds the factor as a 32-bit float, so
-{{ gain }} is stored a hair off, and a product meant to land exactly on a
-whole number falls just short of it and truncates one level lower.{% endif %}
-{% endset %}
-
 {% include 'partials/results/comparison.html' %}

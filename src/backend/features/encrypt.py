@@ -22,10 +22,11 @@ Two ciphers, both keyed by a passphrase:
 
             Both masks are needed to invert it. The first is what whitens the
             spectrum: without it, F{x} still has a photo's magnitude and R2
-            leaves magnitudes alone. The cost is that E is complex, so the
-            ciphertext is a field, not an image -- the plate below draws |E|,
-            which is a picture *of* the ciphertext, and cannot be decrypted.
-            Save one and Decrypt will tell you so.
+            leaves magnitudes alone. The cost is that E is complex, and an
+            image has no room for that, so the saved picture is two images
+            stacked: the real part above the imaginary part, twice as tall
+            as the field and twice the bytes (common/cipher_file.py). With
+            both halves in the file, Decrypt opens it with the key.
 
     phase   One random phase mask in the spectrum, built conjugate-symmetric
             so the inverse comes back real:
@@ -216,8 +217,9 @@ def view():
     # it is handed one that keeps everything and asked for the spectrum alone
     flat = np.ones_like(mag)
 
-    # complex128 for the field, or one byte a channel for a saved PNG
-    cipher_bytes = cipher.size * (1 if scheme == "phase" else 16)
+    # one byte a channel, as saved: for DRPE that is both halves, real and
+    # imaginary, so twice the phase cipher's
+    cipher_bytes = picture_u8.size
 
     return render_template(
         "index.html",

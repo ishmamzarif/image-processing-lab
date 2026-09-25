@@ -135,4 +135,40 @@
         input.value = '';
         input.dispatchEvent(new Event('change'));
     });
+
+    // A result handed on as the source of another operation: Encrypt's Decrypt
+    // button, <button data-send-to="decrypt" data-focus="guess">. The picture
+    // on the button's plate becomes the picked file, exactly as if it had been
+    // saved and chosen again: its data URI is the PNG itself, tEXt chunks and
+    // all, so the cipher, stretch and crop Decrypt reads out of it survive.
+    // Then that operation is selected and the field named by data-focus gets
+    // the cursor, ready for the passphrase.
+    document.querySelectorAll('[data-send-to]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var plate = btn.closest('.plate');
+            var img = plate.querySelector('.plate__well img');
+            var save = plate.querySelector('a[download]');
+            var fileName = save ? save.getAttribute('download') : 'image.png';
+
+            fetch(img.src)
+                .then(function (response) { return response.blob(); })
+                .then(function (blob) {
+                    var dt = new DataTransfer();
+                    dt.items.add(new File([blob], fileName, { type: 'image/png' }));
+                    input.files = dt.files;
+                    input.dispatchEvent(new Event('change'));   // named, previewed and kept, as above
+
+                    var radio = document.getElementById('op-' + btn.dataset.sendTo);
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    // the sidebar may have been hidden; the next step is in it
+                    if (document.body.dataset.rail === 'off') document.getElementById('rail-toggle').click();
+
+                    window.scrollTo(0, 0);
+                    var field = document.getElementById(btn.dataset.focus);
+                    if (field) field.focus({ preventScroll: true });
+                });
+        });
+    });
 })();

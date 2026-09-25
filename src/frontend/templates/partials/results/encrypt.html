@@ -21,32 +21,19 @@
         <div class="plate">
             <div class="plate__bar">
                 <span>Encrypted</span>
-                <span class="conv__sub">{% if real_cipher %}the ciphertext{% else %}|E|, a view of it{% endif %} &middot; {{ cipher_size }}</span>
-                <a class="save" href="{{ encrypted }}" download="encrypted-{{ scheme }}.png">Save png</a>
+                <span class="conv__sub">{% if real_cipher %}the ciphertext{% else %}real part above imaginary{% endif %} &middot; {{ cipher_size }}</span>
+                {# Decrypt hands this very file, tags and all, to the Decrypt
+                   page as its source (source-image.js) #}
+                <span class="plate__acts">
+                    <a class="save" href="{{ encrypted }}" download="encrypted-{{ scheme }}.png">Save png</a>
+                    <button type="button" class="save" data-send-to="decrypt" data-focus="guess">Decrypt</button>
+                </span>
             </div>
             <div class="plate__well" data-cap="Encrypted">
                 <img src="{{ encrypted }}" alt="The encrypted image">
             </div>
         </div>
     </div>
-
-    <p class="cmp__note">
-        {% if real_cipher %}
-        That plate is the ciphertext itself, not a picture of one, and the PNG
-        behind <b>Save png</b> carries the cipher, the stretch and the crop
-        inside it. Save it, switch to <b>Decrypt</b>, choose the file and type
-        the passphrase: it comes back. Type anything else and it does not
-        &mdash; there is no near miss, because the passphrase is hashed before a
-        mask is drawn, so one different character is a different key entirely.
-        {% else %}
-        Careful with this one: the plate is |E|, a picture <em>of</em> the
-        ciphertext. DRPE's output is a complex field, and the phase &mdash; half
-        the information, and the half that carries the structure &mdash; is not
-        in the picture and cannot be got back out of it. Save it and Decrypt
-        will say so rather than pretend. For a ciphertext you can actually
-        reopen, use the phase-only cipher.
-        {% endif %}
-    </p>
 
     <div class="pair">
         <div class="plate">
@@ -70,26 +57,6 @@
         </div>
     </div>
 
-    <p class="cmp__note">
-        {% if real_cipher %}
-        These two plates are the same picture, and that is the point. A phase-only
-        mask multiplies each coefficient by something of magnitude 1, so
-        |F&lbrace;x&rbrace;| comes through untouched: the ciphertext has the
-        plaintext's power spectrum exactly. Everything the spectrum says about the
-        image &mdash; how much texture, at what scale, along which direction
-        &mdash; is still being said out loud, and it is why the correlation figure
-        below does not move either. Autocorrelation is the inverse transform of
-        the power spectrum, so a cipher that leaves one alone leaves the other
-        alone too.
-        {% else %}
-        The bright centre is gone. That is the first mask doing it, not the
-        second: multiplying the <em>image</em> by a random phase spreads its
-        energy evenly across the spectrum before the second mask ever sees it.
-        A mask applied only in the spectrum could not have done this, because
-        |e<sup>i&phi;</sup>| = 1 leaves every magnitude where it was.
-        {% endif %}
-    </p>
-
     {% if library %}
     {# --- the identical encryption, run on numpy's FFT instead of ours.
            Same algorithm, so the numbers measure transforms.py itself. --- #}
@@ -98,6 +65,7 @@
         <i>&middot;</i> numpy
         <i>&middot;</i> <u>{{ elapsed_lib }} s</u>
         {% if speedup %}<i>&middot;</i> {{ speedup }}&times; faster{% endif %}
+        <i>&middot;</i> max diff {{ stats.max }} <i>&middot;</i> {{ stats.within1 }}% within 1
     </div>
 
     <div class="pair">
@@ -112,15 +80,6 @@
         </div>
     </div>
 
-    <p class="cmp__note">
-        The same masks, the same two transforms &mdash; only the transform is
-        swapped, so this is a direct test of <code>transforms.py</code>: the
-        largest difference of any channel value is <b>{{ stats.max }}</b> out of
-        255, with <b>{{ stats.within1 }}%</b> within 1. Two noise fields
-        agreeing to that tolerance is a stronger check than it looks, since a
-        single wrong butterfly anywhere would put every pixel somewhere else.
-        The time column is the honest cost of writing them in Python.
-    </p>
     {% endif %}
 
     {# --- the numbers this kind of cipher is judged on --- #}
@@ -141,25 +100,4 @@
         </table>
     </div>
 
-    <p class="cmp__note">
-        Correlation is between each pixel and its right-hand neighbour: a photo
-        sits near 0.9, because one pixel nearly tells you the next, and noise sits
-        near 0. Entropy is of the 8-bit histogram, where 8.00 means every value is
-        equally likely{% if not real_cipher %} &mdash; |E| falls short of it
-        honestly, since the magnitude of a complex field with random phase is
-        Rayleigh distributed, not flat{% endif %}. Size is the ciphertext:
-        {% if real_cipher %}one byte per channel, the same as the raw image, plus
-        the handful of bytes of tags inside the PNG{% else %}a complex128 field,
-        16 bytes a channel, which is the price of a ciphertext that is not an
-        image{% endif %}.
-    </p>
-
-    <p class="cmp__note">
-        Worth saying plainly: this is the Fourier transform used as a cipher, not
-        a cipher you should use. Double random phase encoding is a real scheme and
-        a landmark one, but it is linear, and a linear cipher falls to a
-        known-plaintext attack &mdash; a few plaintext-ciphertext pairs are enough
-        to solve for the masks. The passphrase is hashed once with sha256, which
-        is not a key derivation function either.
-    </p>
 </section>

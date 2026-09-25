@@ -30,7 +30,7 @@ from flask import render_template, request
 from backend.common.fourier_2d import fft2, ifft2, luma, pad_to_pow2, shift, unshift
 from backend.common.limits import WORK_DIM
 from backend.common.metrics import compare, psnr
-from backend.common.spectrum import spectrum_plate
+from backend.common.spectrum import spectrum_plate, spectrum_surface
 from backend.common.timing import timed, timing_fields
 from backend.common.uploads import form_number, open_image, size_text, to_data_uri, uploaded_file
 
@@ -240,6 +240,7 @@ def view():
         original=to_data_uri(original),
         noisy=to_data_uri((noisy * 255).astype(np.uint8)),
         spectrum=to_data_uri(spectrum_plate(mag, mask, view_mode)),
+        surface=spectrum_surface(mag, mask),   # the same spectrum in 3D (spectrum-3d.js)
         denoised=to_data_uri(cleaned_u8),
         library=to_data_uri(library_u8),
         lib_call="numpy.fft.fft2 / ifft2",

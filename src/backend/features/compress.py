@@ -209,20 +209,6 @@ def library_jpeg(img, target_bytes):
     return decoded, len(data), quality
 
 
-def jpeg_fit(jpeg_q, bytes_lib, bytes_ours):
-    """Whether the JPEG search could match our size, for the note under the result.
-
-    Past about 7% kept our file is bigger than anything JPEG produces (quality
-    100: "ceiling"), and at the very bottom JPEG's smallest file, headers
-    included, can be bigger than ours ("floor"). None means the sizes matched.
-    """
-    if jpeg_q == 100 and bytes_lib < 0.85 * bytes_ours:
-        return "ceiling"
-    if jpeg_q == 1 and bytes_lib > 1.15 * bytes_ours:
-        return "floor"
-    return None
-
-
 # ---------------------------------------------------------------------------
 # Web route: POST /compress
 # ---------------------------------------------------------------------------
@@ -267,7 +253,6 @@ def view():
         different_method=True,            # not the same algorithm: compared by PSNR at equal size
         keep="{:g}".format(keep),
         kept="{:.1f}".format(100.0 * float(np.mean(mask))),
-        stored=int(packed["idx"].size),
         bytes_raw=kilobytes(bytes_raw),
         bytes_ours=kilobytes(bytes_ours),
         bytes_lib=kilobytes(bytes_lib),
@@ -282,10 +267,7 @@ def view():
         quality_ours="{:.2f}".format(100.0 - loss_ours),
         quality_lib="{:.2f}".format(100.0 - loss_lib),
         jpeg_q=jpeg_q,
-        jpeg_fit=jpeg_fit(jpeg_q, bytes_lib, bytes_ours),
         size=size_text(original),
         spec_size=size_text(mag),
-        elapsed_enc="{:.2f}".format(elapsed_enc),
-        elapsed_dec="{:.2f}".format(elapsed_dec),
         **timing_fields(elapsed, elapsed_lib),
     )

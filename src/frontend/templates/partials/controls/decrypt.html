@@ -1,4 +1,4 @@
-{# Decrypt: the passphrase to try, and a word about what Source means here.
+{# Decrypt: the passphrase to try.
 
    Its own field, named "guess" rather than "key": this page is handed a file
    and a string, and has no way of knowing whether the string is the right one.
@@ -8,13 +8,4 @@
     <label class="label" for="guess">Passphrase</label>
     <input class="text" type="text" name="guess" id="guess" spellcheck="false"
            placeholder="cse220" value="{{ key if recovered else '' }}">
-</div>
-
-<div class="field f-hint">
-    <p class="hint">
-        Source is the <b>encrypted picture</b>, not a photo: run Encrypt with
-        the phase-only cipher, press <b>Save png</b>, and choose that file here.
-        The cipher, the stretch and the crop are written inside it &mdash; the
-        passphrase is the only thing you have to carry.
-    </p>
 </div>

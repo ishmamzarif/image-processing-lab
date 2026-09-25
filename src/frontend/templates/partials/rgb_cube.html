@@ -1,0 +1,26 @@
+{# --- the colour cube (static/js/rgb-cube.js): a sample of the pixels drawn
+       at their colours' positions in RGB space, before and after. Used by the
+       live preview (id "live-cube") and by the channels and filters results
+       (id "result-cube"); set cube_id before including. A canvas, so it sits
+       in a .conv__well: .plate__well's viewer wants an <img>. --- #}
+<div class="cube">
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>Colour cube</span>
+                <span class="conv__sub" id="{{ cube_id }}-n"></span>
+            </div>
+            <div class="conv__well">
+                <canvas id="{{ cube_id }}"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="conv__ctl">
+        <span class="conv__mode" id="{{ cube_id }}-mode">
+            <button type="button" data-mode="before">Before</button>
+            <button type="button" data-mode="after">After</button>
+            <button type="button" data-mode="both" class="is-on">Both</button>
+        </span>
+    </div>
+</div>
