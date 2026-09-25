@@ -103,7 +103,7 @@ def encrypt_round_trip(clean, key, wrong_key):
     cipher, _, crop = encrypt.encrypt(clean, key, "phase")
     picture, span = visible(cipher, "phase")
     picture_u8 = np.round(picture * 255.0).astype(np.uint8)
-    field = from_picture(picture_u8, span)       # what Decrypt reads out of the saved PNG
+    field = from_picture(picture_u8, span, "phase")   # what Decrypt reads out of the saved PNG
     right = decrypt.decrypt(field, key, "phase", crop)
     wrong = decrypt.decrypt(field, wrong_key, "phase", crop)
     return cipher, picture_u8, right, wrong
