@@ -90,6 +90,36 @@
   \raisebox{0.45cm}{\includegraphics[height=0.8cm]{kernel_#1}}\,%
   \includegraphics[height=1.7cm]{blur_#1}\\[1pt]{\footnotesize\color{muted}#2}\end{tabular}}
 \newcommand{\tagline}[1]{\begin{center}\alert{#1}\end{center}}
+% nearest-neighbour resize of one row, drawn as the code does it: each new
+% pixel's centre (dot) points up to the old pixel under it, and the old pixels
+% that get read are shaded. Positions come from (i + 1/2) * old/new, not by hand.
+% \resizemap{old count}{new count}{cm per old pixel}{title}{effect}
+\newcommand{\resizemap}[5]{%
+\begin{tikzpicture}[x=#3cm, y=1cm, font=\footnotesize]
+  \pgfmathsetmacro{\rmS}{#1/#2}
+  \pgfmathtruncatemacro{\rmOld}{#1 - 1}
+  \pgfmathtruncatemacro{\rmNew}{#2 - 1}
+  \foreach \i in {0,...,\rmNew} {
+    \pgfmathsetmacro{\p}{(\i + 0.5) * \rmS}
+    \pgfmathtruncatemacro{\j}{floor(\p)}
+    \fill[accent!15] (\j, 0.95) rectangle ++(1, 0.42);
+  }
+  \foreach \j in {0,...,\rmOld} {
+    \draw[black!35] (\j, 0.95) rectangle ++(1, 0.42);
+    \node[black!70] at (\j + 0.5, 1.16) {\j};
+  }
+  \foreach \i in {0,...,\rmNew}
+    \draw[black!35] (\i * \rmS, 0) rectangle ++(\rmS, 0.42);
+  \foreach \i in {0,...,\rmNew} {
+    \pgfmathsetmacro{\p}{(\i + 0.5) * \rmS}
+    \draw[-{Stealth[length=4pt]}, accent, thick] (\p, 0.21) -- (\p, 0.95);
+    \fill[accent] (\p, 0.21) circle (1.6pt);
+  }
+  \node[left, muted] at (0, 1.16) {old};
+  \node[left, muted] at (0, 0.21) {new};
+  \node[above=1pt] at (#1 / 2, 1.37) {#4};
+  \node[below=1pt, muted] at (#1 / 2, 0) {#5};
+\end{tikzpicture}}
 % display maths sits closer to the text around it (beamer resets these in \normalsize)
 \makeatletter
 \g@addto@macro\normalsize{%
@@ -266,15 +296,20 @@ def gaussian_kernel(size):
 Every new pixel copies the old pixel under its centre (nearest neighbour).
 Nothing is averaged.
 
-\vspace{1.2em}
+\vspace{0.8em}
 \centering
-\pic{2.1cm}{blur_input}{input}\hspace{3pt}
-\pic{2.1cm}{resize_blocky}{$\times0.2$, then $\times5$}\hspace{16pt}
-\pic{2.1cm}{zone}{zone plate}\hspace{3pt}
-\pic{2.1cm}{zone_nearest}{$\downarrow 4$, nearest (ours)}\hspace{3pt}
-\pic{2.1cm}{zone_lowpass}{$\downarrow 4$, low-pass first}
+\pic{1.8cm}{blur_input}{input}\hspace{3pt}
+\pic{1.8cm}{resize_blocky}{$\times0.2$, then $\times5$}\hspace{16pt}
+\pic{1.8cm}{zone}{zone plate}\hspace{3pt}
+\pic{1.8cm}{zone_nearest}{$\downarrow 4$, nearest (ours)}\hspace{3pt}
+\pic{1.8cm}{zone_lowpass}{$\downarrow 4$, low-pass first}
 
-\vspace{1.2em}
+\vspace{0.8em}
+\resizemap{3}{6}{1.4}{\textbf{Enlarge}\enspace $s = 3/6 = 0.5 < 1$}{every old pixel copied twice: blocky}%
+\hspace{1.4cm}%
+\resizemap{6}{4}{0.7}{\textbf{Shrink}\enspace $s = 6/4 = 1.5 > 1$}{pixels 1 and 4 never read: aliasing}
+
+\vspace{0.8em}
 {\small\color{muted} blocky when enlarged, false rings when shrunk
  \enspace\textperiodcentered\enspace identical to Pillow's NEAREST: max $|\Delta| = 0$}
 \end{frame}
@@ -383,53 +418,6 @@ out = clip(out, 0, 255).astype(uint8)
 \end{frame}
 
 %------------------------------------------------
-\begin{frame}[fragile,t]{The FFT, from scratch}
-\concept{DFT \enspace\textperiodcentered\enspace Cooley--Tukey divide \& conquer
- \enspace\textperiodcentered\enspace $O(N\log N)$}
-\begin{columns}[T,totalwidth=\textwidth]
-\column{0.41\textwidth}
-The DFT of $N$ samples:
-\[
-  X[k] = \sum_{n=0}^{N-1} x[n]\, W_N^{kn}, \quad W_N = e^{-j2\pi/N}
-\]
-Direct: $O(N^2)$. Split even ($E$) and odd ($O$):
-\[
-  \begin{aligned}
-    X[k]              &= E[k] + W_N^k\, O[k] \\
-    X[k+\tfrac{N}{2}] &= E[k] - W_N^k\, O[k]
-  \end{aligned}
-\]
-$\log_2 N$ stages of butterflies: \alert{$O(N\log N)$}.
-
-\bigskip
-{\small\color{muted} $N = 1024$: DFT 148\,ms $\to$ FFT 1.2\,ms,
-equal to numpy.fft within $10^{-12}$.\\[2pt]
-Sides reflect-padded to $2^k$: a zero-padded edge is a step, which is broadband.}
-
-\column{0.55\textwidth}
-\begin{lstlisting}
-def fft(x):                        # N = 2^m
-    X = bit_reverse_order(x)
-    for s in range(1, m + 1):      # log2 N stages
-        M = 2**s
-        wM = exp(-2j * pi / M)     # once per stage
-        for l in range(0, N, M):   # each block
-            w = 1
-            for k in range(M // 2):     # butterflies
-                a, b = l + k, l + k + M//2
-                g, h = X[a], w * X[b]
-                X[a], X[b] = g + h, g - h
-                w *= wM
-    return X
-
-ifft = lambda X: conj(fft(conj(X))) / N  # reuse
-
-fft2 = lambda a: fft_columns(fft_rows(a))  # separable
-\end{lstlisting}
-\end{columns}
-\end{frame}
-
-%------------------------------------------------
 \begin{frame}{Compress}
 Keep only the strongest \alert{5\%} of the Fourier coefficients, store them compactly,
 rebuild the image from them.
@@ -504,6 +492,53 @@ Stir periodic stripes into the photo, find them in the spectrum, cut them out.
 {\small\color{muted} app defaults (stripes 30\%, notch width 3) \enspace\textperiodcentered\enspace
  99.8\% of the spectrum kept \enspace\textperiodcentered\enspace
  vs numpy.fft: max $|\Delta| = 0$}
+\end{frame}
+
+%------------------------------------------------
+\begin{frame}[fragile,t]{The FFT, from scratch}
+\concept{DFT \enspace\textperiodcentered\enspace Cooley--Tukey divide \& conquer
+ \enspace\textperiodcentered\enspace $O(N\log N)$}
+\begin{columns}[T,totalwidth=\textwidth]
+\column{0.41\textwidth}
+The DFT of $N$ samples:
+\[
+  X[k] = \sum_{n=0}^{N-1} x[n]\, W_N^{kn}, \quad W_N = e^{-j2\pi/N}
+\]
+Direct: $O(N^2)$. Split even ($E$) and odd ($O$):
+\[
+  \begin{aligned}
+    X[k]              &= E[k] + W_N^k\, O[k] \\
+    X[k+\tfrac{N}{2}] &= E[k] - W_N^k\, O[k]
+  \end{aligned}
+\]
+$\log_2 N$ stages of butterflies: \alert{$O(N\log N)$}.
+
+\bigskip
+{\small\color{muted} $N = 1024$: DFT 148\,ms $\to$ FFT 1.2\,ms,
+equal to numpy.fft within $10^{-12}$.\\[2pt]
+Sides reflect-padded to $2^k$: a zero-padded edge is a step, which is broadband.}
+
+\column{0.55\textwidth}
+\begin{lstlisting}
+def fft(x):                        # N = 2^m
+    X = bit_reverse_order(x)
+    for s in range(1, m + 1):      # log2 N stages
+        M = 2**s
+        wM = exp(-2j * pi / M)     # once per stage
+        for l in range(0, N, M):   # each block
+            w = 1
+            for k in range(M // 2):     # butterflies
+                a, b = l + k, l + k + M//2
+                g, h = X[a], w * X[b]
+                X[a], X[b] = g + h, g - h
+                w *= wM
+    return X
+
+ifft = lambda X: conj(fft(conj(X))) / N  # reuse
+
+fft2 = lambda a: fft_columns(fft_rows(a))  # separable
+\end{lstlisting}
+\end{columns}
 \end{frame}
 
 %------------------------------------------------
@@ -691,26 +726,6 @@ def decrypt(E, key):
 \vspace{0.4em}
 {\small\color{muted} Sharpen, edges and compress use a different method from their
 baselines, so they are compared by eye and PSNR instead.}
-\end{frame}
-
-%------------------------------------------------
-\begin{frame}{References}
-\small
-\setbeamertemplate{bibliography item}[text]
-\begin{thebibliography}{9}
-  \bibitem{cooley} J.~W. Cooley, J.~W. Tukey. An algorithm for the machine calculation of
-    complex Fourier series. \emph{Math. Comp.} 19(90):297--301, 1965.
-  \bibitem{bluestein} L.~I. Bluestein. A linear filtering approach to the computation of the
-    discrete Fourier transform. \emph{IEEE Trans. Audio Electroacoust.} 18(4):451--455, 1970.
-  \bibitem{drpe} P.~Refregier, B.~Javidi. Optical image encryption based on input plane and
-    Fourier plane random encoding. \emph{Optics Letters} 20(7):767--769, 1995.
-  \bibitem{jpeg} G.~K. Wallace. The JPEG still picture compression standard.
-    \emph{IEEE Trans. Consumer Electron.} 38(1):xviii--xxxiv, 1992.
-  \bibitem{oppenheim} A.~V. Oppenheim, A.~S. Willsky, S.~H. Nawab.
-    \emph{Signals and Systems}, 2nd ed. Prentice Hall, 1997.
-  \bibitem{gonzalez} R.~C. Gonzalez, R.~E. Woods.
-    \emph{Digital Image Processing}, 4th ed. Pearson, 2018.
-\end{thebibliography}
 \end{frame}
 
 %------------------------------------------------
