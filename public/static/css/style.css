@@ -1,0 +1,1506 @@
+/* All the page's styles, in the order the page is laid out.
+ *
+ *   design tokens (colours, type, sizes)   shell / rail / rail toggle
+ *   file, operation selector, params,      canvas, empty / error, viewer
+ *   sliders, run buttons                   library comparison, compression stats
+ *   method panel                           visualiser toggle, convolution visualiser
+ *   live preview
+ *
+ * Which controls and buttons are visible is decided here, not in JS: rules like
+ * .rail:has(#op-blur:checked) .f-ksize show a field only while its operation's
+ * radio is checked.
+ */
+
+/* ---------- i can change default colors and fonts here ---------- */
+:root {
+    --bg: #ffffff;
+    --ink: #000000;
+
+    /* greys are mixed from --ink, so they stay correct on any --bg */
+    --line: color-mix(in srgb, var(--ink) 13%, transparent);
+    --line-2: color-mix(in srgb, var(--ink) 30%, transparent);
+    --muted: color-mix(in srgb, var(--ink) 58%, transparent);
+    --faint: color-mix(in srgb, var(--ink) 40%, transparent);
+
+    /* the one non-monochrome colour: the moving kernel has to stay
+       legible over any pixel it lands on, black ones included */
+    --accent: #0a84ff;
+
+    /* ---------- TYPE ---------- */
+    /* San Francisco on Apple platforms, with sane fallbacks elsewhere */
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+            "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+    --scale: 1;                               /* 1.2 enlarges the whole UI at once */
+
+    --t-micro: calc(11.5px * var(--scale));   /* uppercase section labels */
+    --t-small: calc(13px * var(--scale));     /* op notes, plate captions */
+    --t-meta: calc(14px * var(--scale));      /* readout row, empty state */
+    --t-ui: calc(14.5px * var(--scale));      /* buttons, file field, error */
+    --t-base: calc(16px * var(--scale));      /* body, wordmark, base UI */
+    --t-op: calc(16.5px * var(--scale));      /* operation names */
+
+    /* ---------- LAYOUT ---------- */
+    --rail: 320px;
+    --pad: 22px;
+    --radius: 3px;
+    --head: 70px;                /* header band height, both columns */
+    /* --maxdim is set in index.html, from MAX_DIM in backend/common/limits.py */
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: var(--t-base);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- shell ---------- */
+
+.app {
+    position: relative;             /* anchors the rail toggle */
+    display: grid;
+    grid-template-columns: var(--rail) 1fr;
+    /* at least the window, but free to grow with a long result. It has to
+       grow: the sticky rail below can only stay in view while it is inside
+       its parent, so a parent one window tall would carry it off screen. */
+    min-height: 100%;
+}
+
+/* ---------- rail ---------- */
+
+.rail {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+}
+
+/* the rail is a flex column: without flex:none its children shrink when
+   the controls overflow, which was squashing the header band */
+.rail>* {
+    flex: none;
+}
+
+/* sticky, so when the controls overflow and the rail scrolls, they pass
+   under the header rather than under the toggle that sits on it. The
+   extra left padding is the toggle's slot. */
+.rail__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    height: var(--head);
+    padding: 0 var(--pad) 0 calc(var(--pad) + 44px);
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+}
+
+/* ---------- rail toggle ---------- */
+
+/* Lives outside the rail, pinned to the top-left of the page, so it stays
+   on screen when the rail is gone. A hidden rail is only out of sight
+   (visibility or display, below), and its fields are still submitted, so
+   it keeps its settings for the next run. The choice is on body[data-rail],
+   saved under 'rail'. */
+.rail-toggle {
+    position: absolute;
+    top: calc((var(--head) - 32px) / 2);
+    left: var(--pad);
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color 90ms ease-out;
+}
+
+.rail-toggle:hover,
+.rail-toggle:focus-visible {
+    border-color: var(--ink);
+}
+
+/* the left pane of the icon is filled while the rail is open */
+.rail-toggle__pane {
+    fill: currentColor;
+    fill-opacity: .25;
+    transition: fill-opacity 280ms ease-out;
+}
+
+body[data-rail="off"] .rail-toggle__pane {
+    fill-opacity: 0;
+}
+
+/* Narrow screens stack the rail above the results (see the end of the
+   file), so hiding simply takes it out, and the results get a band of
+   their own below the toggle. */
+@media (max-width: 900px) {
+    body[data-rail="off"] .rail {
+        display: none;
+    }
+
+    body[data-rail="off"] .canvas {
+        padding-top: var(--head);
+    }
+}
+
+/* Wide screens: the rail stays in view while the results scroll, and it
+   slides in and out.
+
+   Staying in view: the rail is pinned to the top and exactly one window
+   tall, and scrolls on its own if the controls are taller than that. The
+   toggle is pinned to the window too.
+
+   Sliding: two things move together, with the same timing. The rail's
+   column narrows from --rail to 0, so the results widen into the space,
+   and the rail itself (still --rail wide) moves left by its own width, so
+   its right edge follows the column's edge exactly and it never overlaps
+   the results. When the slide is over, visibility: hidden takes it out of
+   the tab order; the 0s transition delayed by --rail-time is what waits
+   for the slide to finish before hiding it, and shows it at once on the
+   way back in. */
+@media (min-width: 901px) {
+    :root {
+        --rail-time: 280ms;
+        --rail-ease: cubic-bezier(.2, .7, .2, 1);   /* quick start, gentle stop */
+    }
+
+    .app {
+        transition: grid-template-columns var(--rail-time) var(--rail-ease);
+    }
+
+    .rail {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        width: var(--rail);
+        height: 100vh;
+        overflow-x: hidden;
+        transition: transform var(--rail-time) var(--rail-ease),
+                    visibility 0s linear 0s;
+    }
+
+    .rail-toggle {
+        position: fixed;
+    }
+
+    .canvas {
+        transition: padding var(--rail-time) var(--rail-ease);
+    }
+
+    body[data-rail="off"] .app {
+        grid-template-columns: 0px 1fr;
+    }
+
+    body[data-rail="off"] .rail {
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform var(--rail-time) var(--rail-ease),
+                    visibility 0s linear var(--rail-time);
+    }
+
+    /* keep the results clear of the toggle, with the same room on the
+       right so centred rows stay centred */
+    body[data-rail="off"] .canvas {
+        padding-inline: calc(var(--pad) + 54px);
+    }
+}
+
+/* people who have asked their system for less motion get the instant
+   version: same end states, no slide */
+@media (prefers-reduced-motion: reduce) {
+    .app,
+    .rail,
+    .canvas,
+    .rail-toggle__pane,
+    .ops__arrow,
+    .op {
+        transition: none !important;
+    }
+}
+
+.wordmark {
+    margin: 0;
+    font-size: var(--t-base);
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.wordmark span {
+    display: block;
+    font-weight: 400;
+    color: var(--faint);
+}
+
+.sect {
+    padding: 18px var(--pad);
+    border-bottom: 1px solid var(--line);
+}
+
+.label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 9px;
+    font-size: var(--t-micro);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+/* ---------- file ---------- */
+
+.file input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.file__btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    font-size: var(--t-ui);
+    cursor: pointer;
+    transition: border-color 90ms ease-out;
+}
+
+.file__btn:hover,
+.file input:focus-visible+.file__btn {
+    border-color: var(--ink);
+}
+
+/* "Use camera": a button made to look like the file picker above it */
+.file__camera {
+    width: 100%;
+    margin-top: 8px;
+    color: var(--ink);
+    font-family: var(--font);
+    text-align: left;
+}
+
+.file__camera:focus-visible {
+    border-color: var(--ink);
+    outline: none;
+}
+
+.file__name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--faint);
+}
+
+.file__name.is-set {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+.file__plus {
+    flex: none;
+    font-size: var(--t-op);
+    color: var(--muted);
+}
+
+
+/* sits on the Source label row, so it borrows the label's type */
+.file__reset {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.file__reset:hover,
+.file__reset:focus-visible {
+    color: var(--ink);
+}
+
+/* ---------- operation selector ---------- */
+
+.ops {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+/* The OPERATION header is a button: clicking anywhere on it (the arrow
+   included) collapses the list to the selected operation, or opens it.
+   It keeps the look of the other section labels. */
+.ops__toggle {
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 0 var(--pad);
+    align-items: center;
+    background: none;
+    border: 0;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: color 90ms ease-out;
+}
+
+.ops__toggle:hover {
+    color: var(--ink);
+}
+
+.ops__toggle:focus-visible {
+    outline: 1px solid var(--line-2);
+    outline-offset: 2px;
+}
+
+/* drawn pointing right; turned a quarter to point down while open */
+.ops__arrow {
+    flex: none;
+    transform: rotate(90deg);
+    transition: transform 260ms cubic-bezier(.2, .7, .2, 1);
+}
+
+body[data-ops="off"] .ops__arrow {
+    transform: rotate(0deg);
+}
+
+/* Opening and closing. Each operation is a grid with one row: 1fr is its
+   natural height and 0fr is nothing, and a browser can animate between the
+   two, which it cannot do for height: auto. .op__clip hides the part that
+   no longer fits while the row shrinks.
+
+   Opening, the rows grow and fade in one after another, 25 ms apart (--i is
+   the position in the list, set in sidebar.html). Closing is quicker and
+   all at once, and visibility: hidden waits for the end of it (the delayed
+   0s transition) so the hidden radios drop out of keyboard reach. The
+   selected operation is never collapsed, so what Apply will run stays in
+   view. */
+.op {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 280ms cubic-bezier(.2, .7, .2, 1),
+                opacity 280ms ease-out,
+                visibility 0s;
+    transition-delay: calc(var(--i, 0) * 25ms);
+}
+
+body[data-ops="off"] .op:not(:has(input:checked)) {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition: grid-template-rows 200ms ease-in,
+                opacity 150ms ease-in,
+                visibility 0s linear 200ms;
+}
+
+.op__clip {
+    position: relative;   /* keeps the hidden radio inside the clip */
+    min-height: 0;
+    overflow: hidden;
+}
+
+.op input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.op__row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px var(--pad);
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    opacity: .5;
+    transition: opacity 90ms ease-out;
+}
+
+.op__row:hover {
+    opacity: .8;
+}
+
+.op input:checked+.op__row {
+    opacity: 1;
+    border-left-color: var(--ink);
+}
+
+.op input:focus-visible+.op__row {
+    outline: 1px solid var(--line-2);
+    outline-offset: -1px;
+}
+
+.op__name {
+    font-size: var(--t-op);
+    font-weight: 500;
+    letter-spacing: .01em;
+}
+
+.op__note {
+    margin-left: auto;
+    font-size: var(--t-small);
+    color: var(--faint);
+}
+
+/* ---------- params ---------- */
+
+.field {
+    display: none;
+    margin-bottom: 16px;
+}
+
+.field:last-child {
+    margin-bottom: 0;
+}
+
+.rail:has(#op-blur:checked) .f-kernel,
+.rail:has(#op-blur:checked) .f-ksize,
+.rail:has(#op-blur:checked) .f-viz,
+.rail:has(#op-sharpen:checked) .f-cutoff,
+.rail:has(#op-sharpen:checked) .f-amount,
+.rail:has(#op-edges:checked) .f-cutoff,
+.rail:has(#op-denoise:checked) .f-noise,
+.rail:has(#op-denoise:checked) .f-namt,
+.rail:has(#op-denoise:checked) .f-filt,
+.rail:has(#op-denoise:checked) .f-soft,
+.rail:has(#op-denoise:checked) .f-view,
+.rail:has(#op-compress:checked) .f-keep,
+.rail:has(#op-encrypt:checked) .f-scheme,
+.rail:has(#op-encrypt:checked) .f-key,
+.rail:has(#op-decrypt:checked) .f-guess,
+.rail:has(#op-decrypt:checked) .f-hint,
+.rail:has(#op-brightness:checked) .f-gain,
+.rail:has(#op-channels:checked) .f-rgb,
+.rail:has(#op-filters:checked) .f-fkind,
+.rail:has(#op-resize:checked) .f-scale {
+    display: block;
+}
+
+/* notch width or cutoff radius, never both: they belong to different
+   filters. The select's value cannot be reached from CSS, so a little
+   JS mirrors it onto the form as a data attribute. */
+.rail:has(#op-denoise:checked)[data-filter="notch"] .f-nwidth,
+.rail:has(#op-denoise:checked):not([data-filter="notch"]) .f-fcut {
+    display: block;
+}
+
+/* only a motion blur has a direction; data-kernel is set by the server
+   and kept in step with the select by the same kind of mirroring */
+.rail:has(#op-blur:checked)[data-kernel="motion"] .f-angle {
+    display: block;
+}
+
+/* each filter has one slider, and only the chosen filter's shows;
+   data-filter-kind is mirrored from the Filter select the same way */
+.rail:has(#op-filters:checked)[data-filter-kind="grayscale"] .f-gray,
+.rail:has(#op-filters:checked)[data-filter-kind="invert"] .f-invert,
+.rail:has(#op-filters:checked)[data-filter-kind="black_and_white"] .f-threshold,
+.rail:has(#op-filters:checked)[data-filter-kind="pixelate"] .f-block,
+.rail:has(#op-filters:checked)[data-filter-kind="vintage"] .f-vintage {
+    display: block;
+}
+
+select {
+    width: 100%;
+    padding: 9px 10px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: var(--t-ui);
+    cursor: pointer;
+}
+
+/* the passphrase boxes: a key is typed, not chosen, so Encrypt is the one
+   operation with text fields. Same box as the selects. */
+.text {
+    width: 100%;
+    padding: 9px 10px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: var(--t-ui);
+}
+
+.text::placeholder {
+    color: var(--faint);
+}
+
+/* a line of guidance under a control, where what to do is not obvious
+   from the field alone (Decrypt, whose Source is a ciphertext) */
+.hint {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: var(--t-small);
+    line-height: 1.4;
+}
+
+select:hover,
+.text:hover {
+    border-color: var(--ink);
+}
+
+select:focus-visible,
+.text:focus-visible {
+    outline: 1px solid var(--ink);
+    outline-offset: 2px;
+}
+
+.val {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+/* ---------- sliders ---------- */
+
+input[type="range"] {
+    display: block;
+    width: 100%;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--line-2);
+    border-radius: var(--radius);
+}
+
+input[type="range"]::-moz-range-track {
+    height: 2px;
+    background: var(--line-2);
+    border-radius: var(--radius);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -6px;
+    background: var(--ink);
+    border: none;
+    border-radius: 50%;
+    transition: transform 90ms ease-out;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--ink);
+    border: none;
+    border-radius: 50%;
+    transition: transform 90ms ease-out;
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+    transform: scale(1.25);
+}
+
+input[type="range"]:active::-moz-range-thumb {
+    transform: scale(1.25);
+}
+
+input[type="range"]:focus-visible {
+    outline: 1px solid var(--ink);
+    outline-offset: 4px;
+}
+
+/* ---------- run ---------- */
+
+.run {
+    margin-top: auto;
+    padding: var(--pad);
+}
+
+.run button {
+    display: none;
+    width: 100%;
+    padding: 13px;
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius);
+    color: var(--bg);
+    font-family: var(--font);
+    font-size: var(--t-ui);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 90ms ease-out, opacity 90ms ease-out;
+}
+
+.rail:has(#op-blur:checked) .run-blur,
+.rail:has(#op-sharpen:checked) .run-sharpen,
+.rail:has(#op-edges:checked) .run-edges,
+.rail:has(#op-denoise:checked) .run-denoise,
+.rail:has(#op-compress:checked) .run-compress,
+.rail:has(#op-encrypt:checked) .run-encrypt,
+.rail:has(#op-decrypt:checked) .run-decrypt,
+.rail:has(#op-brightness:checked) .run-brightness,
+.rail:has(#op-channels:checked) .run-channels,
+.rail:has(#op-filters:checked) .run-filters,
+.rail:has(#op-resize:checked) .run-resize {
+    display: block;
+}
+
+.run button:active {
+    transform: translateY(1px);
+}
+
+.run button:disabled {
+    opacity: .45;
+    cursor: progress;
+    transform: none;
+}
+
+/* ---------- canvas ---------- */
+
+.canvas {
+    display: flex;
+    flex-direction: column;
+    padding: 0 30px 30px;
+    overflow: auto;
+}
+
+.meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    height: var(--head);
+    gap: 0 10px;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--t-meta);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.meta b {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.meta i {
+    font-style: normal;
+    color: var(--faint);
+}
+
+/* keep the unit lowercase; the row is otherwise uppercased */
+.meta u {
+    text-decoration: none;
+    text-transform: none;
+}
+
+/* wrap rather than share: two plates sit side by side while they fit and
+   drop to a second row when they do not. a grid would have shrunk both
+   columns instead, which is what made the result smaller than the
+   preview. */
+.pair {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 26px;
+    padding-top: 22px;
+}
+
+/* the plate hugs its image, so a 200 px picture is not stranded in the
+   middle of a 700 px frame. min-width keeps room for the caption row. */
+.plate {
+    flex: none;
+    width: fit-content;
+}
+
+.plate__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+    margin-bottom: 9px;
+    font-size: var(--t-small);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.save {
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line-2);
+    transition: color 90ms ease-out, border-color 90ms ease-out;
+}
+
+.save:hover {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+}
+
+.plate__well {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: zoom-in;
+    transition: border-color 90ms ease-out;
+}
+
+.plate__well:hover {
+    border-color: var(--line-2);
+}
+
+/* shown at their true size. the backend caps images at 500 px, so any
+   upscale here has to invent pixels: nearest-neighbour looks blocky,
+   smooth interpolation looks blurred, and both make the original look
+   altered next to the result. no scaling means neither. */
+.plate__well img {
+    display: block;
+    width: auto;
+    height: auto;
+    /* capped in both axes at the backend's own limit, which is what makes
+       the pre-run preview of a full-resolution file come out the same
+       size as the processed result. the result is already within the cap,
+       so it renders untouched. */
+    max-width: var(--maxdim);
+    max-height: var(--maxdim);
+}
+
+/* except a resize, whose result is meant to be a different size: it is shown
+   at its true size, only shrunk if it would not fit the column */
+#result[data-op="resize"] .plate__well img {
+    max-width: 100%;
+    max-height: none;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+/* ---------- empty / error ---------- */
+
+.empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: var(--t-meta);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+
+.empty p {
+    margin: 0;
+}
+
+.empty b {
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.note {
+    margin-top: 30px;
+    padding: 13px 15px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    font-size: var(--t-ui);
+}
+
+.note span {
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+/* ---------- viewer ---------- */
+
+.viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 44px;
+    background: var(--bg);
+    cursor: zoom-out;
+}
+
+.viewer.is-open {
+    display: flex;
+}
+
+/* magnified to a whole-number multiple by JS below. an integer factor
+   maps each source pixel to an exact square block, which stays sharp;
+   a fractional factor is what produced uneven banding before. */
+.viewer img {
+    max-width: 92vw;
+    max-height: 86vh;
+    image-rendering: pixelated;
+}
+
+.viewer__cap {
+    position: fixed;
+    top: 22px;
+    left: 30px;
+    font-size: var(--t-small);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+
+/* ---------- library comparison ---------- */
+
+.cmp__head {
+    margin-top: 30px;
+}
+
+/* the exact call, sitting next to the LIBRARY caption */
+.cmp__call {
+    margin-left: 8px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: .92em;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink);
+}
+
+.cmp__note {
+    max-width: 640px;
+    margin: 22px auto 0;
+    font-size: var(--t-small);
+    line-height: 1.55;
+    text-align: center;
+    color: var(--faint);
+}
+
+.cmp__note code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: .92em;
+}
+
+.cmp__note b {
+    color: var(--ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- compression stats ---------- */
+
+/* the same measure as the notes, so the table lines up under them. It
+   can be wider than a phone, hence its own scroller. */
+.stats-wrap {
+    max-width: 640px;
+    margin: 22px auto 0;
+    overflow-x: auto;
+}
+
+.stats {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--t-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.stats th,
+.stats td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.stats thead th {
+    font-size: var(--t-micro);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.stats tbody th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--muted);
+}
+
+.stats td {
+    color: var(--ink);
+}
+
+/* our column, the one the page is about */
+.stats .ours {
+    font-weight: 600;
+}
+
+/* ---------- method panel ---------- */
+
+.recipe {
+    margin-top: 34px;
+    padding-bottom: 10px;
+}
+
+.recipe__grid {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 34px;
+    align-items: start;
+    padding-top: 22px;
+}
+
+@media (max-width: 1180px) {
+    .recipe__grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 26px;
+    }
+}
+
+/* sits in the section's header band, so it borrows that row's type */
+.recipe__toggle {
+    padding: 5px 11px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    font: inherit;
+    font-size: var(--t-small);
+    font-weight: 600;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color 90ms ease-out, background 90ms ease-out, color 90ms ease-out;
+}
+
+.recipe__toggle:hover,
+.recipe__toggle:focus-visible {
+    border-color: var(--ink);
+}
+
+.recipe__toggle[aria-expanded="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--bg);
+}
+
+.recipe__h {
+    margin: 0 0 12px;
+    font-size: var(--t-micro);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+/* Code blocks: the call tree, and the line of source behind each
+   equation. The language tag sits in the corner rather than on a header
+   strip, so a one-line block stays close to one line tall. */
+.code {
+    position: relative;
+    margin: 0;
+    padding: 24px 16px 12px;
+    overflow-x: auto;
+    background: color-mix(in srgb, var(--ink) 3%, var(--bg));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    white-space: pre;
+    tab-size: 4;
+}
+
+.code[data-lang]::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    font-family: var(--font);
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+
+/* Restrained highlighting, since the rest of the UI is black and white
+   with one accent: keywords bold, literals in the accent, comments
+   faint. The spans come from the small highlighter at the bottom. */
+.tok-k {
+    font-weight: 600;
+}
+
+.tok-n,
+.tok-s {
+    color: var(--accent);
+}
+
+.tok-c {
+    color: var(--faint);
+}
+
+/* the call tree is mostly scaffolding, so it sits back and lets the
+   function names (<b>) carry it. monospace keeps the box-drawing lines
+   aligned. */
+.flow {
+    color: var(--muted);
+}
+
+.flow b {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.flow i {
+    font-style: normal;
+    color: var(--faint);
+}
+
+.eq {
+    display: flex;
+    gap: 12px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+}
+
+/* min-width 0 so a long code line scrolls inside its block instead of
+   pushing the whole column wider */
+.eq__body {
+    flex: 1;
+    min-width: 0;
+}
+
+/* The maths, typeset by KaTeX from the TeX written inside. KaTeX comes
+   from a CDN, so offline it never arrives, and then the TeX source is
+   left on screen in monospace, which still reads. */
+.tex {
+    margin-bottom: 10px;
+    padding: 2px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--ink);
+}
+
+.tex.is-typeset {
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.tex .katex-display {
+    margin: 0;
+}
+
+/* fleqn indents by 2em; flush left lines the maths up with its code */
+.tex .katex-display.fleqn > .katex {
+    padding-left: 0;
+}
+
+.tex .katex {
+    font-size: 1.12em;
+}
+
+.eq:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+/* the step number, tying each equation back to a line of the call tree */
+.eq__n {
+    flex: none;
+    min-width: 22px;
+    padding-top: 1px;
+    font-size: var(--t-small);
+    font-weight: 600;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+}
+
+/* the older one-line form. Scoped to a direct child so it no longer
+   catches inline <code> in the notes, which it used to force onto a
+   line of its own. */
+.eq > div > code {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--ink);
+    overflow-x: auto;
+}
+
+.eq em {
+    display: block;
+    margin-top: 5px;
+    font-style: normal;
+    font-size: var(--t-small);
+    line-height: 1.55;
+    color: var(--muted);
+}
+
+.eq em em,
+.eq em code {
+    font-style: italic;
+    color: var(--ink);
+}
+
+.eq sub,
+.eq sup {
+    font-size: .74em;
+    line-height: 0;
+}
+
+.eq .sum {
+    font-size: 1.22em;
+    font-weight: 500;
+    vertical-align: -.06em;
+}
+
+.eq__or {
+    font-family: var(--font);
+    color: var(--faint);
+}
+
+/* ---------- visualiser toggle ---------- */
+
+.viz-btn {
+    width: 100%;
+    margin-top: 14px;
+    padding: 10px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: var(--t-small);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 90ms ease-out, background 90ms ease-out, color 90ms ease-out;
+}
+
+.viz-btn:hover {
+    border-color: var(--ink);
+}
+
+.viz-btn[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--bg);
+}
+
+/* ---------- convolution visualiser ---------- */
+
+/* only meaningful for the box convolution, so it follows the same
+   :has() pattern the rail's own per-operation fields use */
+.conv {
+    display: none;
+}
+
+body[data-viz="on"]:has(#op-blur:checked) .conv:not([hidden]) {
+    display: block;
+}
+
+/* the visualiser already shows the source, so the plain preview above it
+   is redundant once it is on screen */
+body[data-viz="on"]:has(#op-blur:checked) .canvas:has(.conv:not([hidden])) .preview {
+    display: none;
+}
+
+.conv__grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 26px;
+    padding-top: 22px;
+}
+
+/* looks like a .plate__well but is deliberately a different class: the
+   click-to-magnify handler binds to .plate__well and expects an <img> */
+.conv__well {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+/* the overlay is a second canvas laid exactly over the first: the image
+   is written with putImageData, which ignores transforms and would wipe
+   any kernel box drawn onto the same surface */
+.conv__stack {
+    position: relative;
+    line-height: 0;
+    cursor: crosshair;
+}
+
+.conv__stack canvas {
+    display: block;
+    max-width: var(--maxdim);
+    max-height: var(--maxdim);
+}
+
+.conv__image {
+    image-rendering: pixelated;
+}
+
+.conv__overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+/* one mode's panels and controls at a time */
+.conv[data-mode="photo"] .is-cells,
+.conv[data-mode="photo"] .cells-only,
+.conv[data-mode="cells"] .is-photo,
+.conv[data-mode="cells"] .photo-only {
+    display: none;
+}
+
+.conv__mode {
+    display: flex;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.conv__mode button {
+    border: none;
+    border-radius: 0;
+    color: var(--muted);
+}
+
+.conv__mode button+button {
+    border-left: 1px solid var(--line-2);
+}
+
+.conv__mode button.is-on {
+    background: var(--ink);
+    color: var(--bg);
+}
+
+.conv__mode button:hover {
+    border-color: transparent;
+    color: var(--ink);
+}
+
+.conv__mode button.is-on:hover {
+    color: var(--bg);
+}
+
+/* the working area is wider than the two grids, so it takes its own row
+   rather than being squeezed alongside them */
+.conv__calc {
+    flex-basis: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.conv__sub {
+    font-weight: 400;
+    color: var(--faint);
+    text-transform: none;
+    letter-spacing: .02em;
+}
+
+.conv__ctl {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 18px;
+    padding-top: 22px;
+}
+
+.conv__ctl button {
+    padding: 9px 18px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: var(--t-small);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 90ms ease-out, transform 90ms ease-out;
+}
+
+.conv__ctl button:hover {
+    border-color: var(--ink);
+}
+
+.conv__ctl button:active {
+    transform: translateY(1px);
+}
+
+.conv__speed {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--t-micro);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.conv__speed input[type="range"] {
+    width: 130px;
+}
+
+.conv__speed b {
+    min-width: 92px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+}
+
+.conv__hint {
+    max-width: 620px;
+    margin: 16px auto 0;
+    font-size: var(--t-small);
+    line-height: 1.55;
+    text-align: center;
+    color: var(--muted);
+}
+
+/* ---------- live preview ---------- */
+
+/* The per-pixel operations, brightness, channels and filters, are cheap
+   enough to redo in the browser on every movement of a slider, and adjust.js
+   draws them here. Like the visualiser it belongs to its own
+   operations only. While it is up, the plain preview and any result
+   below it, which the slider has made stale, give way; switching to
+   another operation brings them back. */
+.live {
+    display: none;
+}
+
+body:has(:is(#op-brightness, #op-channels, #op-filters, #op-resize):checked) .live:not([hidden]) {
+    display: block;
+}
+
+body:has(:is(#op-brightness, #op-channels, #op-filters, #op-resize):checked) .canvas:has(.live:not([hidden])) :is(.preview, #result, .recipe) {
+    display: none;
+}
+
+.live canvas {
+    display: block;
+    max-width: 100%;   /* an enlarging resize can be wider than the column */
+}
+
+/* ---------- camera ---------- */
+
+/* The live webcam view (partials/camera.html, camera.js). It is shown only
+   while body[data-camera="on"], and then it takes over the canvas: everything
+   else there is hidden. The !important is needed because some of those
+   sections are shown by rules much more specific than this one (the live
+   preview's, for example), and the camera has to win over all of them. */
+.camera {
+    display: none;
+}
+
+body[data-camera="on"] .camera {
+    display: block;
+}
+
+body[data-camera="on"] .canvas > :not(.camera) {
+    display: none !important;
+}
+
+/* flipped left to right, like a mirror; the captured photo is flipped the
+   same way in camera.js, so it matches what was on screen */
+.camera__video {
+    display: block;
+    max-width: 100%;
+    max-height: 70vh;
+    transform: scaleX(-1);
+}
+
+.camera__error {
+    margin: 22px auto 0;
+    max-width: 620px;
+}
+
+.camera__error i {
+    font-style: normal;
+}
+
+.conv__ctl button:disabled {
+    opacity: .4;
+    cursor: default;
+}
+
+@media (max-width: 900px) {
+    .app {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .rail {
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .run {
+        margin-top: 0;
+    }
+}
