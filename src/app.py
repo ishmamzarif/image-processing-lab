@@ -15,6 +15,12 @@ index.html again with the results filled in. Nothing is stored between
 requests.
 """
 
+import os
+import sys
+
+# Vercel imports this file directly, so make sure `backend` is importable
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from flask import Flask, render_template
 
 from backend.common.limits import MAX_DIM
@@ -27,7 +33,7 @@ from backend.features import (
 app = Flask(
     __name__,
     template_folder="frontend/templates",
-    static_folder="frontend/static",
+    static_folder="../public/static",
 )
 
 # The template sizes the pre-run preview to match what the processed image will
