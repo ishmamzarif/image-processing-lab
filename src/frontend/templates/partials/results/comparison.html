@@ -7,7 +7,10 @@
        headline       the text at the start of the top row
        out_label      what our image is called ("Blurred", "Edges", ...)
        out_file       the download name, without .png
-       cube           true to add the colour cube under the pair (channels, filters) #}
+       cube           true to add the colour cube under the pair (channels, filters)
+
+   A feature that passes `surface` gets its 3D view under the pair as well
+   (partials/surface_3d.html); its own file sets the title and notes. #}
 
 <section id="result" data-op="{{ active }}">
     <div class="meta">
@@ -38,6 +41,10 @@
     {% if cube %}
     {% set cube_id = 'result-cube' %}
     {% include 'partials/rgb_cube.html' %}
+    {% endif %}
+
+    {% if surface %}
+    {% include 'partials/surface_3d.html' %}
     {% endif %}
 
     {% if library %}

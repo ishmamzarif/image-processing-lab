@@ -8,5 +8,6 @@
     phase_keys.py     the passphrase -> the two masks encrypt and decrypt share
     cipher_file.py    what a ciphertext looks like as a PNG, both ways
     continuous_ft.py  the continuous Fourier transform that sharpen and edges use
-    spectrum.py       drawing a spectrum (and a mask over it) as a picture
+    spectrum.py       drawing a spectrum (and a mask over it) as a picture, or as a 3D view
+    surface.py        the height fields the 3D views draw, and the helpers they share
 """

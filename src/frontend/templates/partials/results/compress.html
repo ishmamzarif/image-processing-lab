@@ -42,6 +42,21 @@
         </div>
     </div>
 
+    {% if surface %}
+    {# --- the same spectrum as a surface you can turn: as given, with the kept
+           bins tinted, and Kept, with everything else zeroed --- #}
+    {% set surface_title = 'Spectrum in 3D' %}
+    {% set surface_sub %}log |X| of luma, centred &middot; {{ surface.modes[0].z[0] | length }} &times; {{ surface.modes[0].z | length }} grid{% endset %}
+    {% set surface_note %}
+        The tinted bins are the {{ kept }}% that are kept, and Kept is all the
+        decoder gets. They are the mountain in the middle, and leaving out the
+        centre bin (the average brightness), they hold <b>{{ energy }}%</b> of
+        the picture's energy: a photo's energy is packed into a few low
+        frequencies, which is why so few bins are enough.
+    {% endset %}
+    {% include 'partials/surface_3d.html' %}
+    {% endif %}
+
     {% if library %}
     {# --- JPEG at about the same size. A different method, so it is
            compared by size and error, not pixel for pixel. --- #}

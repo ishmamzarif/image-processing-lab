@@ -1431,12 +1431,12 @@ body:has(:is(#op-brightness, #op-channels, #op-filters, #op-resize):checked) .ca
 
 /* ---------- 3D views ---------- */
 
-/* The colour cube (partials/rgb_cube.html, rgb-cube.js) and the Denoise
-   spectrum surface (spectrum-3d.js). plot3d.js sizes each canvas to fit its
-   row, so nothing here may squeeze it: .live canvas would, and the drawing
-   would stretch with it. */
+/* The colour cube (partials/rgb_cube.html, rgb-cube.js) and the surfaces
+   (partials/surface_3d.html, surface-3d.js). plot3d.js sizes each canvas to
+   fit its row, so nothing here may squeeze it: .live canvas would, and the
+   drawing would stretch with it. */
 .cube canvas,
-.spectrum3d canvas {
+.surface3d canvas {
     display: block;
     max-width: none;
 }

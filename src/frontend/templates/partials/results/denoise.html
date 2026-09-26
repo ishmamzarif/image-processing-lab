@@ -52,28 +52,11 @@
     </div>
 
     {% if surface %}
-    {# --- the same spectrum as a surface you can turn (static/js/spectrum-3d.js).
-           A canvas, so it sits in a .conv__well: .plate__well's viewer wants an <img>. --- #}
-    <div class="pair">
-        <div class="plate spectrum3d">
-            <div class="plate__bar">
-                <span>Spectrum in 3D</span>
-                <span class="conv__sub">log |X|, centred &middot; {{ surface.before[0] | length }} &times; {{ surface.before | length }} grid</span>
-            </div>
-            <div class="conv__well">
-                <canvas id="spectrum-3d"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <div class="conv__ctl">
-        <span class="conv__mode" id="spectrum-3d-mode">
-            <button type="button" data-mode="before" class="is-on">Noisy</button>
-            <button type="button" data-mode="after">Filtered</button>
-        </span>
-    </div>
-
-    <script type="application/json" id="spectrum-3d-data">{{ surface | tojson }}</script>
+    {# --- the same spectrum as a surface you can turn: Noisy, with every bin
+           the filter removes tinted, and Filtered, on the same height scale --- #}
+    {% set surface_title = 'Spectrum in 3D' %}
+    {% set surface_sub %}log |X|, centred &middot; {{ surface.modes[0].z[0] | length }} &times; {{ surface.modes[0].z | length }} grid{% endset %}
+    {% include 'partials/surface_3d.html' %}
     {% endif %}
 
     {% if library %}

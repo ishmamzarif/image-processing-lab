@@ -26,10 +26,13 @@
     // cell at each speed setting. 0 is "finish it now".
     var GRIDS = [12, 16, 24, 32, 48, 64];
     var CELL_MS = [1400, 800, 420, 200, 90, 0];
+    var CELL_LABELS = ['1.4 s/cell', '800 ms/cell', '420 ms/cell', '200 ms/cell', '90 ms/cell', 'all at once'];
 
-    // speed slider position -> output pixels per frame
-    var SPEEDS = [1, 4, 25, 200, 2000, Infinity];
-    var SPEED_LABELS = ['1 px', '4 px', '25 px', '200 px', '2000 px', 'max'];
+    // speed slider position -> output pixels per frame. Every notch is still
+    // held to BUDGET_MS a frame, so with a large kernel the top two can run
+    // slower than their labels say.
+    var SPEEDS = [1, 4, 25, 200, 10000, Infinity];
+    var SPEED_LABELS = ['1 px/frame', '4 px/frame', '25 px/frame', '200 px/frame', '10000 px/frame', 'max'];
 
     var input = document.getElementById('image');
     var section = document.getElementById('conv');
@@ -817,11 +820,19 @@
         paint();
     });
 
+    // one slider, two meanings: pixels per frame for the photo, time per cell
+    // for the grid, so the readout follows the mode
+    function speedText() {
+        var i = speed.value | 0;
+        elSpeed.textContent = mode === 'cells' ? CELL_LABELS[i] : SPEED_LABELS[i];
+    }
+
     function setMode(m) {
         mode = m;
         section.dataset.mode = m;
         btnPhoto.classList.toggle('is-on', m === 'photo');
         btnGrid.classList.toggle('is-on', m === 'cells');
+        speedText();
         // the sweep canvas is measured from its rendered box, which was zero
         // while the photo panels were hidden
         if (m === 'photo') sizeOverlay();
@@ -857,10 +868,7 @@
         paint();
     }, { passive: false });
 
-    speed.addEventListener('input', function () {
-        elSpeed.textContent = SPEED_LABELS[speed.value | 0] + '/frame';
-    });
-    elSpeed.textContent = SPEED_LABELS[speed.value | 0] + '/frame';
+    speed.addEventListener('input', speedText);
     zoomIn.value = ZOOM_DEFAULT;   // JS owns the default; the markup only mirrors it
     elGridV.textContent = String(GRIDS[gridIn.value | 0]);
     setMode('photo');

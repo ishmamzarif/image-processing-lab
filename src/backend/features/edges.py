@@ -18,6 +18,7 @@ from PIL import Image, ImageFilter
 
 from backend.common.continuous_ft import high_pass_detail
 from backend.common.limits import MAX_DIM
+from backend.common.spectrum import filter_surface
 from backend.common.timing import timed, timing_fields
 from backend.common.uploads import form_number, open_image, size_text, to_data_uri, uploaded_file
 
@@ -36,12 +37,17 @@ def to_grayscale(rgb):
 
 
 def edge_map(channel, cutoff):
-    """Edge strength from 0 to 1, inverted so edges are dark on a white background."""
-    edges = np.abs(high_pass_detail(channel, cutoff))
+    """Edge strength from 0 to 1, inverted so edges are dark on a white background.
+
+    Returns (edges, spectrum, mask), the last two straight from
+    high_pass_detail, for the 3D view.
+    """
+    detail, spectrum, mask = high_pass_detail(channel, cutoff)
+    edges = np.abs(detail)
     peak = edges.max()
     if peak > 0:
         edges = edges / peak
-    return 1 - edges
+    return 1 - edges, spectrum, mask
 
 
 def detect_edges(original, cutoff):
@@ -73,7 +79,7 @@ def view():
 
     img, original = open_image(file, MAX_DIM)
 
-    detected, elapsed = timed(detect_edges, original, cutoff)
+    (detected, spectrum, mask), elapsed = timed(detect_edges, original, cutoff)
     detected = np.clip(detected * 255.0, 0, 255).astype(np.uint8)
 
     library, elapsed_lib = timed(library_edges, img)
@@ -85,6 +91,10 @@ def view():
         library=to_data_uri(library),
         lib_call="ImageFilter.FIND_EDGES",
         different_method=True,
+        # the system in 3D: H is the mask itself. The middle, which it
+        # removes, is tinted, and the view spans four cutoffs each way, far
+        # enough to reach H's rim.
+        surface=filter_surface(spectrum, mask, mask < 0.5, "High-passed", max(16, int(4 * cutoff))),
         edge_cutoff="{:g}".format(cutoff),
         size=size_text(original),
         **timing_fields(elapsed, elapsed_lib),

@@ -5,4 +5,16 @@
 
 {% set headline %}<b>Sharpen</b> <i>&middot;</i> cutoff {{ cutoff }} <i>&middot;</i> amount {{ amount }}{% endset %}
 
+{# the 3D view: the luma's spectrum, the filter, and their product #}
+{% if surface %}
+{% set surface_title = 'Frequency response in 3D' %}
+{% set surface_sub %}log |F|, the middle ±{{ surface.window[0] }}{% if surface.window[1] != surface.window[0] %} &times; ±{{ surface.window[1] }}{% endif %} bins &middot; {{ surface.modes[0].z[0] | length }} &times; {{ surface.modes[0].z | length }} grid{% endset %}
+{% set surface_note %}
+    Filter H is the system: 1 in the tinted middle, so the smooth part of
+    the picture passes as it is, rising to 1 + amount further out, so the
+    detail comes back stronger. Sharpened is the spectrum times H, on the same
+    scale: the rim lifts and the middle stays.
+{% endset %}
+{% endif %}
+
 {% include 'partials/results/comparison.html' %}

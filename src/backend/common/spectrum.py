@@ -1,7 +1,9 @@
 """Drawing a spectrum as a picture, for the denoise and compress pages, and as a
-height field for the 3D view on the denoise page."""
+height field for the 3D views (common/surface.py has the format)."""
 
 import numpy as np
+
+from backend.common.surface import flags, heights, pool
 
 
 def spectrum_picture(mag):
@@ -42,39 +44,67 @@ def spectrum_plate(mag, mask, view):
     return (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
 
 
-def spectrum_surface(mag, mask, size=64):
-    """A centred spectrum and its mask as a height field, for the 3D view on the denoise page.
+def spectrum_surface(mag, mask, tinted, labels, size=64):
+    """A centred spectrum before and after a mask, as a 3D view with two modes.
 
-    Returned as plain lists, ready for tojson: "before" and "after" are heights
-    in 0..1 (the spectrum as given, and after the mask), "mask" is the mask.
+    `labels` names the two buttons, and `tinted` marks the bins drawn in the
+    accent colour in both modes: denoise tints what its mask removes, compress
+    what its mask keeps. See common/surface.py for the format.
 
-    Pooled down to at most size x size so the browser can turn it smoothly.
     Heights are pooled by their maximum, so a noise peak one bin wide survives
-    as a spike instead of being averaged into its neighbours, and the mask by
-    its minimum, so a notch still shows as a hole.
+    as a spike instead of being averaged into its neighbours, and the tint
+    likewise, so a single tinted bin still shows.
 
     Heights are log(1 + |X|), stretched so the lowest bin of the spectrum as
     given is 0 and its highest is 1. The masked spectrum is put on the same
     scale, so the two views compare directly, and whatever the mask removed
     falls to the floor.
     """
-    h, w = mag.shape
-    bh, bw = max(1, h // size), max(1, w // size)
-
-    def pool(a, how):
-        # the sides are powers of two, so the blocks divide them exactly
-        return how(a.reshape(h // bh, bh, w // bw, bw), axis=(1, 3))
-
-    before = np.log1p(pool(mag, np.max))
-    after = np.log1p(pool(mag * mask, np.max))
+    before = np.log1p(pool(mag, size, np.max))
+    after = np.log1p(pool(mag * mask, size, np.max))
     low, top = float(before.min()), float(before.max())
-    span = top - low if top > low else 1.0
-
-    def heights(s):
-        return np.round(np.clip((s - low) / span, 0.0, 1.0), 3).tolist()
-
+    tint = flags(pool(tinted, size, np.max))
     return {
-        "before": heights(before),
-        "after": heights(after),
-        "mask": np.round(pool(mask, np.min), 2).tolist(),
+        "axes": ["u", "v"],
+        "modes": [
+            {"label": labels[0], "z": heights(before, low, top), "tint": tint},
+            {"label": labels[1], "z": heights(after, low, top), "tint": tint},
+        ],
+    }
+
+
+def filter_surface(spectrum, H, tinted, out_label, half, size=64):
+    """A spectrum, a filter and their product, as a 3D view with three modes.
+
+        Spectrum    log(1 + |F|)
+        Filter H    the filter itself, from 0 to its largest value
+        out_label   log(1 + |H F|), on the same scale as Spectrum
+
+    This is the whole of "filtering is multiplication" in one plot: the first
+    mode times the second is the third. Used by sharpen and edges.
+
+    `spectrum` is complex and centred, `H` real and on the same grid, and
+    `tinted` marks the same bins in all three modes, so a region can be
+    followed from one to the next. Only the middle `half` bins each way are
+    drawn: a high-pass with a small cutoff changes a small disc in the middle,
+    and over the whole spectrum its bowl would be a dimple. Returns the
+    window's half-widths (u, v) as "window", for the plate's caption.
+    """
+    h, w = H.shape
+    rv, ru = min(half, h // 2), min(half, w // 2)
+    middle = (slice(h // 2 - rv, h // 2 + rv), slice(w // 2 - ru, w // 2 + ru))
+    mag, H, tint = np.abs(spectrum[middle]), H[middle], flags(pool(tinted[middle], size, np.max))
+
+    before = np.log1p(pool(mag, size, np.max))
+    after = np.log1p(pool(mag * H, size, np.max))
+    low, top = float(before.min()), float(before.max())
+    return {
+        "axes": ["u", "v"],
+        "window": [ru, rv],
+        "modes": [
+            {"label": "Spectrum", "z": heights(before, low, top), "tint": tint},
+            {"label": "Filter H", "z": heights(pool(H, size, np.mean), 0.0, float(H.max())), "tint": tint,
+             "plain": True},
+            {"label": out_label, "z": heights(after, low, top), "tint": tint},
+        ],
     }

@@ -21,7 +21,9 @@ from flask import render_template
 from PIL import ImageFilter
 
 from backend.common.continuous_ft import high_pass_detail
+from backend.common.fourier_2d import luma
 from backend.common.limits import MAX_DIM
+from backend.common.spectrum import filter_surface
 from backend.common.timing import timed, timing_fields
 from backend.common.uploads import form_number, open_image, size_text, to_data_uri, uploaded_file
 
@@ -31,12 +33,20 @@ from backend.common.uploads import form_number, open_image, size_text, to_data_u
 # ---------------------------------------------------------------------------
 
 def sharpen_image(source, cutoff, amount):
-    """Add `amount` times each channel's high-frequency detail back onto it (float 0..1 in)."""
+    """Add `amount` times each channel's high-frequency detail back onto it (float 0..1 in).
+
+    Returns (sharpened, spectrum, mask), the last two for the 3D view: the
+    luma's spectrum and the high-pass mask. The luma is a weighted sum of the
+    channels, so by linearity its spectrum is the same weighted sum of theirs,
+    and no extra transform is needed.
+    """
     sharpened = np.zeros_like(source)
+    spectra = []
     for c in range(3):
-        detail = high_pass_detail(source[:, :, c], cutoff)
+        detail, spectrum, mask = high_pass_detail(source[:, :, c], cutoff)
         sharpened[:, :, c] = source[:, :, c] + amount * detail
-    return sharpened
+        spectra.append(spectrum)
+    return sharpened, luma(np.stack(spectra, axis=-1)), mask
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +89,7 @@ def view():
     img, original = open_image(file, MAX_DIM)
     source = original.astype(np.float64) / 255.0
 
-    sharpened, elapsed = timed(sharpen_image, source, cutoff, amount)
+    (sharpened, spectrum, mask), elapsed = timed(sharpen_image, source, cutoff, amount)
     sharpened = np.clip(sharpened * 255.0, 0, 255).astype(np.uint8)
 
     (library, lib_call), elapsed_lib = timed(library_sharpen, img, cutoff, amount)
@@ -91,6 +101,10 @@ def view():
         library=to_data_uri(library),
         lib_call=lib_call,
         different_method=True,            # no numbers: it is not the same algorithm
+        # the system in 3D: H = 1 + amount * mask, which boosts all but the
+        # lowest frequencies. The middle, which it leaves alone, is tinted, and
+        # the view spans four cutoffs each way, far enough to reach H's rim.
+        surface=filter_surface(spectrum, 1.0 + amount * mask, mask < 0.5, "Sharpened", max(16, int(4 * cutoff))),
         cutoff="{:g}".format(cutoff),
         amount="{:g}".format(amount),
         size=size_text(original),

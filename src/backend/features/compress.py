@@ -48,7 +48,7 @@ from PIL import Image
 from backend.common.fourier_2d import fft2, ifft2, pad_to_pow2, shift
 from backend.common.limits import WORK_DIM
 from backend.common.metrics import pixel_loss, psnr
-from backend.common.spectrum import spectrum_plate
+from backend.common.spectrum import spectrum_plate, spectrum_surface
 from backend.common.timing import timed, timing_fields
 from backend.common.uploads import clamp, open_image, size_text, to_data_uri, uploaded_file
 
@@ -163,6 +163,21 @@ def kept_mask(packed):
     return mask.reshape(m, n)
 
 
+def detail_energy_kept(mag, mask):
+    """How much of the luma's energy the kept bins hold, as a percentage.
+
+    Parseval: a picture's energy is the same summed over its pixels or over its
+    spectrum, so this can be counted bin by bin. The zero-frequency bin, the
+    average brightness, is left out of both sums. It is always kept and holds
+    most of the energy on its own (72% on the cat photo), so counting it would
+    make any setting look like 99%.
+    """
+    energy = mag ** 2
+    energy[0, 0] = 0.0                 # unshifted: zero frequency is the corner
+    total = float(energy.sum())
+    return "{:.1f}".format(100.0 * float((energy * mask).sum()) / total if total > 0 else 100.0)
+
+
 def kilobytes(n):
     return "{:.1f} KB".format(n / 1024.0)
 
@@ -248,6 +263,11 @@ def view():
         original=to_data_uri(original),
         compressed=to_data_uri(restored),
         spectrum=to_data_uri(spectrum_plate(shift(mag), shift(mask), "mask")),
+        # the same spectrum in 3D (surface-3d.js), with the kept bins tinted:
+        # as given, and with everything else zeroed, which is all the decoder
+        # gets
+        surface=spectrum_surface(shift(mag), shift(mask), shift(mask) > 0.5, ("Spectrum", "Kept")),
+        energy=detail_energy_kept(mag, mask),
         library=to_data_uri(library),
         lib_call="Image.save(format=\"JPEG\", quality={})".format(jpeg_q),
         different_method=True,            # not the same algorithm: compared by PSNR at equal size

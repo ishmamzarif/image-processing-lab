@@ -5,4 +5,16 @@
 
 {% set headline %}<b>Edge detect</b> <i>&middot;</i> cutoff {{ edge_cutoff }}{% endset %}
 
+{# the 3D view: the grey image's spectrum, the filter, and their product #}
+{% if surface %}
+{% set surface_title = 'Frequency response in 3D' %}
+{% set surface_sub %}log |F|, the middle ±{{ surface.window[0] }}{% if surface.window[1] != surface.window[0] %} &times; ±{{ surface.window[1] }}{% endif %} bins &middot; {{ surface.modes[0].z[0] | length }} &times; {{ surface.modes[0].z | length }} grid{% endset %}
+{% set surface_note %}
+    Filter H is a bowl: 0 in the tinted middle, 1 further out. Multiplying
+    by it takes away the mountain in the middle, the smooth part of the
+    picture. High-passed is what is left: only quick changes, and taken back
+    to the image, the size of those is the edges.
+{% endset %}
+{% endif %}
+
 {% include 'partials/results/comparison.html' %}

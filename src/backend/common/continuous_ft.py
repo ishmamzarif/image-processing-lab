@@ -90,11 +90,16 @@ def high_pass(real, imag, cutoff, u, v):
     everything, which is precisely unsharp masking done in the frequency
     domain. `cutoff` is in bins, so it keeps the meaning it had before.
     """
+    mask = high_pass_mask(cutoff, u, v)
+    return real * mask, imag * mask
+
+
+def high_pass_mask(cutoff, u, v):
+    """The mask high_pass multiplies by, (v, u) shaped: 0 at the centre, 1 far out."""
     du = u[1] - u[0]
     dv = v[1] - v[0]
     d = np.sqrt((v[:, None] / dv) ** 2 + (u[None, :] / du) ** 2)
-    mask = 1.0 - np.exp(-(d ** 2) / (2.0 * max(cutoff, 1e-6) ** 2))
-    return real * mask, imag * mask
+    return 1.0 - np.exp(-(d ** 2) / (2.0 * max(cutoff, 1e-6) ** 2))
 
 
 def reconstruct(real, imag, u, v, x, y):
@@ -130,9 +135,17 @@ def high_pass_detail(channel, cutoff):
     """The fine detail of one channel: everything above `cutoff`, back in image space.
 
     Sharpen adds this to the image; edges takes its size as the edge strength.
+
+    Returns (detail, spectrum, mask). The other two are for the 3D view on
+    those pages, handed back so nothing is transformed twice: the spectrum
+    before the mask (complex, (v, u) shaped, centred) and the mask. The
+    spectrum is divided by dx dy, which turns the integral back into the plain
+    sum a DFT would give, so its logarithm reads like the app's other spectra.
     """
     x, y = spatial_axes(channel.shape[0], channel.shape[1])
     u, v = frequency_axes(x, y)
     real, imag = compute_cft(channel, x, y, u, v)
-    real, imag = high_pass(real, imag, cutoff, u, v)
-    return reconstruct(real, imag, u, v, x, y)
+    kept_real, kept_imag = high_pass(real, imag, cutoff, u, v)
+    detail = reconstruct(kept_real, kept_imag, u, v, x, y)
+    spectrum = (real + 1j * imag) / ((x[1] - x[0]) * (y[1] - y[0]))
+    return detail, spectrum, high_pass_mask(cutoff, u, v)

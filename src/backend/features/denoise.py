@@ -240,7 +240,8 @@ def view():
         original=to_data_uri(original),
         noisy=to_data_uri((noisy * 255).astype(np.uint8)),
         spectrum=to_data_uri(spectrum_plate(mag, mask, view_mode)),
-        surface=spectrum_surface(mag, mask),   # the same spectrum in 3D (spectrum-3d.js)
+        # the same spectrum in 3D (surface-3d.js), with what the mask removes tinted
+        surface=spectrum_surface(mag, mask, mask < 0.5, ("Noisy", "Filtered")),
         denoised=to_data_uri(cleaned_u8),
         library=to_data_uri(library_u8),
         lib_call="numpy.fft.fft2 / ifft2",

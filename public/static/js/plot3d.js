@@ -1,5 +1,5 @@
 /* A very small 3D view on a 2D canvas, shared by the colour cube (rgb-cube.js)
- * and the spectrum surface (spectrum-3d.js).
+ * and the surfaces (surface-3d.js).
  *
  * The scene lives in world coordinates inside [-1, 1] on every axis, with z
  * pointing up. The camera is orthographic: it turns round the vertical axis

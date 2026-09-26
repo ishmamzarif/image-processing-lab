@@ -1,0 +1,31 @@
+{# --- a height field you can turn (static/js/surface-3d.js, drawn by plot3d.js):
+       the 3D views on the denoise, compress, sharpen and edges pages. The data is
+       `surface`, in the format backend/common/surface.py describes; set
+       surface_title and surface_sub, and optionally surface_note, before
+       including. A canvas, so it sits in a .conv__well: .plate__well's viewer
+       wants an <img>. --- #}
+<div class="surface3d">
+    <div class="pair">
+        <div class="plate">
+            <div class="plate__bar">
+                <span>{{ surface_title }}</span>
+                <span class="conv__sub">{{ surface_sub }}</span>
+            </div>
+            <div class="conv__well">
+                <canvas></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="conv__ctl">
+        <span class="conv__mode">
+            {%- for mode in surface.modes %}
+            <button type="button" data-mode="{{ loop.index0 }}"{% if loop.first %} class="is-on"{% endif %}>{{ mode.label }}</button>
+            {%- endfor %}
+        </span>
+    </div>
+
+    {% if surface_note %}<p class="cmp__note">{{ surface_note }}</p>{% endif %}
+
+    <script type="application/json">{{ surface | tojson }}</script>
+</div>
