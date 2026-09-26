@@ -64,15 +64,91 @@
     filterKindSel.addEventListener('change', syncFilterKind);
     syncFilterKind();
 
-    // hold the button while the server works
+    // hold the button while the server works, and show that it is working:
+    // body[data-busy] runs the line along the top and dims the canvas (CSS)
     form.addEventListener('submit', function (e) {
         var btn = e.submitter;
         if (!btn) return;
-        btn.textContent = 'Computing';
+        btn.dataset.label = btn.textContent;
+        btn.innerHTML = 'Computing<span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>';
+        document.body.dataset.busy = 'on';
         // disabling synchronously cancels the submission in some browsers
         setTimeout(function () {
             var all = form.querySelectorAll('.run button');
             for (var i = 0; i < all.length; i++) all[i].disabled = true;
         }, 0);
+    });
+
+    // While a slider is dragged, its value rides above the thumb in a bubble
+    // (style.css, "slider bubble"), with the same text as its readout, and
+    // the readout gives a small pop on every change. A change from the
+    // keyboard shows the bubble for a moment. The bubble is placed from the
+    // value alone: the thumb's centre runs from half a thumb in from one end
+    // of the track to half a thumb in from the other.
+    var THUMB = 14;                                   // px, as in style.css
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    form.querySelectorAll('input[type="range"]').forEach(function (slider) {
+        var out = document.getElementById('v-' + slider.id);
+        var field = slider.closest('.field');
+        if (!out || !field) return;
+
+        var bubble = document.createElement('span');
+        bubble.className = 'bubble';
+        bubble.setAttribute('aria-hidden', 'true');
+        field.appendChild(bubble);
+        var dragging = false, timer = 0;
+
+        function place() {
+            var min = parseFloat(slider.min), max = parseFloat(slider.max);
+            var frac = max > min ? (parseFloat(slider.value) - min) / (max - min) : 0;
+            var x = slider.offsetLeft + THUMB / 2 + frac * (slider.offsetWidth - THUMB);
+            bubble.textContent = out.textContent;
+            // kept inside the sidebar's padding, pointer still on the thumb
+            var half = bubble.offsetWidth / 2, room = 16;
+            var left = Math.max(half - room, Math.min(field.offsetWidth + room - half, x));
+            bubble.style.left = left + 'px';
+            bubble.style.top = slider.offsetTop + 'px';
+            bubble.style.setProperty('--nudge', (x - left) + 'px');
+        }
+
+        function show(ms) {
+            clearTimeout(timer);
+            place();
+            field.classList.add('is-sliding');
+            if (ms) timer = setTimeout(hide, ms);
+        }
+
+        function hide() {
+            dragging = false;
+            field.classList.remove('is-sliding');
+        }
+
+        slider.addEventListener('pointerdown', function () { dragging = true; show(0); });
+        document.addEventListener('pointerup', function () { if (dragging) hide(); });
+        document.addEventListener('pointercancel', function () { if (dragging) hide(); });
+        slider.addEventListener('blur', hide);
+
+        // registered after readout()'s own listener, so the text is current
+        slider.addEventListener('input', function () {
+            if (dragging) place();
+            else show(900);
+            if (!calm && out.animate) {
+                out.animate([{ transform: 'scale(1.2)' }, { transform: 'none' }],
+                            { duration: 220, easing: 'cubic-bezier(.2, .7, .2, 1)' });
+            }
+        });
+    });
+
+    // Back and Forward can bring a page back from the browser's cache exactly
+    // as it was left, halfway through a run; undo all of the above
+    window.addEventListener('pageshow', function (e) {
+        if (!e.persisted) return;
+        delete document.body.dataset.busy;
+        var all = form.querySelectorAll('.run button');
+        for (var i = 0; i < all.length; i++) {
+            all[i].disabled = false;
+            if (all[i].dataset.label) all[i].textContent = all[i].dataset.label;
+        }
     });
 })();

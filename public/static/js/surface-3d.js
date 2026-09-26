@@ -13,6 +13,11 @@
  *
  * The modes of one view can have different grids (a resized patch has more or
  * fewer pixels than the original); each is stretched over the same floor.
+ *
+ * Switching between two modes on the same grid morphs one surface into the
+ * other over half a second, so a spectrum can be seen turning into the filter
+ * and the filter into what it let through. Between grids of different sizes,
+ * or for anyone whose system asks for less motion, the view simply changes.
  */
 (function () {
     'use strict';
@@ -20,6 +25,11 @@
     if (!window.Plot3D) return;
 
     var BASE = -0.5;       // world height of the floor
+    var MORPH_MS = 520;
+
+    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function ease(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 
     // "#0a84ff" -> [10, 132, 255]
     function rgbOf(hex, fallback) {
@@ -36,8 +46,12 @@
         var quads = (rows - 1) * (cols - 1);
         var order = [];
         for (var q = 0; q < quads; q++) order.push(q);
+        var flat = new Float64Array(rows * cols);
+        for (var r = 0; r < rows; r++) {
+            for (var c = 0; c < cols; c++) flat[r * cols + c] = mode.z[r][c];
+        }
         return {
-            z: mode.z, tint: mode.tint, rgb: mode.rgb, plain: mode.plain,
+            z: mode.z, flat: flat, tint: mode.tint, rgb: mode.rgb, plain: mode.plain,
             rows: rows, cols: cols,
             screen: new Float64Array(rows * cols * 3),
             depth: new Float64Array(quads),
@@ -51,6 +65,11 @@
         var axes = data.axes || ['u', 'v'];
         var modes = data.modes.map(prepare);
         var current = 0;
+
+        // a morph under way: the heights it started from, the mode it came
+        // from (whose colours show for the first half), and when it began
+        var morph = null;
+        var mixed = null;
 
         // The longer side of the floor spans -1..1 and the shorter keeps the
         // grid's shape. Taken from the first mode, so every mode shares it.
@@ -102,16 +121,33 @@
         }
 
         function draw(ctx, view) {
+            var accent = rgbOf(view.accent, [10, 132, 255]);
             var m = modes[current];
-            if (!m.fills) m.fills = shade(m, rgbOf(view.accent, [10, 132, 255]));
-            var z = m.z, rows = m.rows, cols = m.cols, screen = m.screen, depth = m.depth;
+            if (!m.fills) m.fills = shade(m, accent);
+            var rows = m.rows, cols = m.cols, screen = m.screen, depth = m.depth;
+
+            // the heights to draw: the mode's own, or partway there
+            var z = m.flat, fills = m.fills;
+            if (morph) {
+                var t = Math.min(1, (performance.now() - morph.t0) / MORPH_MS);
+                var k = ease(t);
+                for (var i0 = 0; i0 < z.length; i0++) mixed[i0] = morph.from[i0] + (m.flat[i0] - morph.from[i0]) * k;
+                z = mixed;
+                if (t < .5) {
+                    var was = modes[morph.mode];
+                    if (!was.fills) was.fills = shade(was, accent);
+                    fills = was.fills;
+                }
+                if (t < 1) plot.redraw();
+                else morph = null;
+            }
 
             // every vertex once
             for (var r = 0; r < rows; r++) {
                 for (var c = 0; c < cols; c++) {
                     var wx = (c / Math.max(1, cols - 1) * 2 - 1) * spanX;
                     var wy = (1 - r / Math.max(1, rows - 1) * 2) * spanY;     // row 0 at the back
-                    var p = view.project(wx, wy, BASE + z[r][c] * HEIGHT);
+                    var p = view.project(wx, wy, BASE + z[r * cols + c] * HEIGHT);
                     var i = (r * cols + c) * 3;
                     screen[i] = p[0];
                     screen[i + 1] = p[1];
@@ -138,8 +174,8 @@
                 ctx.lineTo(screen[v2], screen[v2 + 1]);
                 ctx.lineTo(screen[v3], screen[v3 + 1]);
                 ctx.closePath();
-                ctx.fillStyle = m.fills[n];
-                ctx.strokeStyle = m.fills[n];
+                ctx.fillStyle = fills[n];
+                ctx.strokeStyle = fills[n];
                 ctx.fill();
                 ctx.stroke();
             }
@@ -179,8 +215,19 @@
         if (!modeBox) return;
         modeBox.addEventListener('click', function (e) {
             var btn = e.target.closest('button[data-mode]');
-            if (!btn) return;
-            current = +btn.dataset.mode;
+            if (!btn || +btn.dataset.mode === current) return;
+            var next = +btn.dataset.mode, a = modes[current], b = modes[next];
+
+            // morph only between grids of the same size; from wherever the
+            // surface is now, which may itself be partway through a morph
+            if (!still && a.rows === b.rows && a.cols === b.cols) {
+                var from = morph ? Float64Array.from(mixed) : Float64Array.from(a.flat);
+                if (!mixed || mixed.length !== from.length) mixed = new Float64Array(from.length);
+                morph = { from: from, mode: current, t0: performance.now() };
+            } else {
+                morph = null;
+            }
+            current = next;
             modeBox.querySelectorAll('button').forEach(function (b) {
                 b.classList.toggle('is-on', b === btn);
             });

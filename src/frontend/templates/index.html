@@ -27,6 +27,10 @@
     {# the one style value only the server knows: the preview is sized to the
        same cap the backend shrinks images to (MAX_DIM in backend/common/limits.py) #}
     <style>:root { --maxdim: {{ MAX_DIM | default(500) }}px; }</style>
+    {# the page-change fade (style.css, "page change"), opted into inline as
+       well: from the stylesheet alone Chrome sometimes decided before it had
+       read it, and skipped the fade #}
+    <style>@view-transition { navigation: auto; }</style>
 </head>
 
 <body>
@@ -110,6 +114,8 @@
     <script src="{{ url_for('static', filename='js/plot3d.js') }}"></script>
     <script src="{{ url_for('static', filename='js/rgb-cube.js') }}"></script>
     <script src="{{ url_for('static', filename='js/surface-3d.js') }}"></script>
+    {# after every script that builds a row of mode buttons #}
+    <script src="{{ url_for('static', filename='js/motion.js') }}"></script>
     <script src="{{ url_for('static', filename='js/adjust.js') }}"></script>
 
 </body>
